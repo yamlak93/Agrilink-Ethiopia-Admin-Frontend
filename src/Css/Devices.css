@@ -1,0 +1,17 @@
+/* Default: no margin on small screens */
+.ms-md-250 {
+  margin-left: 0 !important;
+  transition: margin-left 0.3s ease;
+}
+
+/* Medium screens and up (>=768px) */
+@media (min-width: 991px) {
+  .ms-md-250 {
+    margin-left: 250px !important; /* Shift content for sidebar width */
+  }
+}
+
+/* Optional: smooth transition when sidebar toggles */
+.container-fluid {
+  transition: margin-left 0.3s ease;
+}
