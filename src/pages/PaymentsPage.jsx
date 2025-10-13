@@ -16,127 +16,152 @@ import Sidebar from "../components/Sidebar";
 import "../Css/Devices.css"; // Import Devices.css for ms-md-250
 import "../Css/PaymentsPage.css";
 import "bootstrap/dist/css/bootstrap.min.css";
+import apiClient from "../api/api";
 
 const PaymentsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [transactions, setTransactions] = useState([
-    {
-      id: "PAY-001",
-      orderId: "ORD-2024-001",
-      farmer: "Alemayehu Tadesse",
-      buyer: "Addis Market Co.",
-      product: "Teff (White)",
-      amount: 2500,
-      method: "Chapa",
-      status: "completed",
-      date: "2024-01-15",
-      transactionId: "TXN-CH-001234",
-      type: "payment",
-    },
-    {
-      id: "PAY-002",
-      orderId: "ORD-2024-002",
-      farmer: "Meseret Bekele",
-      buyer: "Fresh Foods Ltd",
-      product: "Coffee Beans",
-      amount: 4200,
-      method: "Chapa",
-      status: "completed",
-      date: "2024-01-15",
-      transactionId: "TXN-CH-001235",
-      type: "payment",
-    },
-    {
-      id: "PAY-003",
-      orderId: "ORD-2024-003",
-      farmer: "Dawit Haile",
-      buyer: "Green Valley Store",
-      product: "Maize",
-      amount: 1800,
-      method: "Chapa",
-      status: "pending",
-      date: "2024-01-14",
-      transactionId: "TXN-CH-001236",
-      type: "payment",
-    },
-    {
-      id: "REF-001",
-      orderId: "ORD-2024-005",
-      farmer: "Yohannes Mekonen",
-      buyer: "Metro Supermarket",
-      product: "Wheat",
-      amount: 2800,
-      method: "Chapa",
-      status: "pending",
-      date: "2024-01-13",
-      transactionId: "REF-CH-001",
-      type: "refund",
-      reason: "Order cancelled by buyer - Product quality concerns",
-      requestedBy: "buyer",
-    },
-    {
-      id: "REF-002",
-      orderId: "ORD-2024-006",
-      farmer: "Hanna Girma",
-      buyer: "Local Restaurant",
-      product: "Onions",
-      amount: 1200,
-      method: "Chapa",
-      status: "approved",
-      date: "2024-01-12",
-      transactionId: "REF-CH-002",
-      type: "refund",
-      reason: "Order cancelled by buyer - Product quality concerns",
-      requestedBy: "buyer",
-    },
-    {
-      id: "REF-003",
-      orderId: "ORD-2024-007",
-      farmer: "Solomon Tesfaye",
-      buyer: "Wholesale Market",
-      product: "Tomatoes",
-      amount: 750,
-      method: "Chapa",
-      status: "processing",
-      date: "2024-01-11",
-      transactionId: "REF-CH-003",
-      type: "refund",
-      reason: "Partial order cancellation - Buyer reduced quantity",
-      requestedBy: "buyer",
-    },
-    {
-      id: "REF-004",
-      orderId: "ORD-2024-008",
-      farmer: "Birtukan Assefa",
-      buyer: "Export Company",
-      product: "Sesame Seeds",
-      amount: 5200,
-      method: "Chapa",
-      status: "rejected",
-      date: "2024-01-10",
-      transactionId: "REF-CH-004",
-      type: "refund",
-      reason: "Order cancelled by buyer - Unable to meet delivery deadline",
-      requestedBy: "buyer",
-    },
-  ]);
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [transactions, setTransactions] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editedStatus, setEditedStatus] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Mock payment summary data
+  // Calculate payment summary dynamically based on current and previous month
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1; // September (9)
+  const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1; // August (8) or December (12) if January
+  const lastYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+  const currentStart = new Date(`${currentYear}-${currentMonth}-01`);
+  const currentEnd = new Date(currentDate);
+  const lastStart = new Date(`${lastYear}-${lastMonth}-01`);
+  const lastEnd = new Date(lastYear, lastMonth, 0); // Last day of previous month
+
+  const currentTransactions = transactions.filter(
+    (t) => new Date(t.date) >= currentStart && new Date(t.date) <= currentEnd
+  );
+  const lastTransactions = transactions.filter(
+    (t) => new Date(t.date) >= lastStart && new Date(t.date) <= lastEnd
+  );
+
+  const currentCompletedPayments = currentTransactions.filter(
+    (t) => t.type === "payment" && t.status === "completed"
+  );
+  const lastCompletedPayments = lastTransactions.filter(
+    (t) => t.type === "payment" && t.status === "completed"
+  );
+  const currentTotalPayments = currentCompletedPayments.reduce(
+    (sum, t) => sum + (t.amount || 0),
+    0
+  );
+  const lastTotalPayments = lastCompletedPayments.reduce(
+    (sum, t) => sum + (t.amount || 0),
+    0
+  );
+  const totalPaymentsChange =
+    lastTotalPayments > 0
+      ? ((currentTotalPayments - lastTotalPayments) / lastTotalPayments) * 100
+      : currentTotalPayments > 0
+      ? 100
+      : 0;
+
+  const currentSuccessfulPayments = currentCompletedPayments.length;
+  const lastSuccessfulPayments = lastCompletedPayments.length;
+  const successfulPaymentsChange =
+    lastSuccessfulPayments > 0
+      ? ((currentSuccessfulPayments - lastSuccessfulPayments) /
+          lastSuccessfulPayments) *
+        100
+      : currentSuccessfulPayments > 0
+      ? 100
+      : 0;
+  const successfulPaymentsPercentage =
+    currentTotalPayments > 0
+      ? (
+          (currentSuccessfulPayments /
+            currentTransactions.filter((t) => t.type === "payment").length) *
+          100
+        ).toFixed(1)
+      : 0;
+
+  const currentPendingRefunds = currentTransactions.filter(
+    (t) => t.type === "refund" && t.status === "pending"
+  ).length;
+
+  const currentTotalRefunded = currentTransactions
+    .filter((t) => t.type === "refund" && t.status === "approved")
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+  const refundedPercentage =
+    currentTotalPayments > 0
+      ? ((currentTotalRefunded / currentTotalPayments) * 100).toFixed(1)
+      : 0;
+
+  const currentAvgOrderValue =
+    currentCompletedPayments.length > 0
+      ? currentTotalPayments / currentCompletedPayments.length
+      : 0;
+  const lastAvgOrderValue =
+    lastCompletedPayments.length > 0
+      ? lastTotalPayments / lastCompletedPayments.length
+      : 0;
+  const avgOrderValueChange =
+    lastAvgOrderValue > 0
+      ? ((currentAvgOrderValue - lastAvgOrderValue) / lastAvgOrderValue) * 100
+      : currentAvgOrderValue > 0
+      ? 100
+      : 0;
+
   const paymentSummary = {
-    totalPayments: 2847500,
-    successfulPayments: 2698,
-    pendingRefunds: 23,
-    totalRefunded: 148500,
-    averageOrderValue: 1055,
+    totalPayments: currentTotalPayments,
+    successfulPayments: currentSuccessfulPayments,
+    pendingRefunds: currentPendingRefunds,
+    totalRefunded: currentTotalRefunded,
+    averageOrderValue: currentAvgOrderValue,
+    totalPaymentsChange: totalPaymentsChange.toFixed(2),
+    successfulPaymentsChange: successfulPaymentsChange.toFixed(2),
+    successfulPaymentsPercentage: successfulPaymentsPercentage,
+    refundedPercentage: refundedPercentage,
+    avgOrderValueChange: avgOrderValueChange.toFixed(2),
   };
 
-  // Filter transactions based on search term and status
+  // Fetch transactions from backend
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      setLoading(true);
+      setError(null);
+      const token = localStorage.getItem("token");
+      if (!token) {
+        window.location.href = "/admin/login";
+        return;
+      }
+      try {
+        const response = await apiClient.get("/payments/all", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setTransactions(response.data.transactions || []);
+      } catch (err) {
+        console.error("Failed to fetch transactions:", err);
+        setError("Failed to load transactions. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTransactions();
+  }, []);
+
+  // Filter transactions based on search term, status, and type
   useEffect(() => {
     let filtered = transactions;
+
+    if (typeFilter !== "all") {
+      filtered = filtered.filter(
+        (transaction) => transaction.type === typeFilter
+      );
+    }
 
     if (statusFilter !== "all") {
       filtered = filtered.filter(
@@ -148,20 +173,34 @@ const PaymentsPage = () => {
       const lowercasedQuery = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (transaction) =>
-          transaction.id.toLowerCase().includes(lowercasedQuery) ||
-          transaction.orderId.toLowerCase().includes(lowercasedQuery) ||
-          transaction.farmer.toLowerCase().includes(lowercasedQuery) ||
-          transaction.buyer.toLowerCase().includes(lowercasedQuery) ||
-          transaction.product.toLowerCase().includes(lowercasedQuery) ||
-          transaction.transactionId.toLowerCase().includes(lowercasedQuery)
+          (transaction.id ? transaction.id.toLowerCase() : "").includes(
+            lowercasedQuery
+          ) ||
+          (transaction.orderId
+            ? transaction.orderId.toLowerCase()
+            : ""
+          ).includes(lowercasedQuery) ||
+          (transaction.farmer ? transaction.farmer.toLowerCase() : "").includes(
+            lowercasedQuery
+          ) ||
+          (transaction.buyer ? transaction.buyer.toLowerCase() : "").includes(
+            lowercasedQuery
+          ) ||
+          (transaction.product
+            ? transaction.product.toLowerCase()
+            : ""
+          ).includes(lowercasedQuery) ||
+          (transaction.transactionId
+            ? transaction.transactionId.toLowerCase()
+            : ""
+          ).includes(lowercasedQuery)
       );
     }
 
     setFilteredTransactions(filtered);
-  }, [searchTerm, statusFilter, transactions]);
+  }, [searchTerm, statusFilter, typeFilter, transactions]);
 
-  const [filteredTransactions, setFilteredTransactions] =
-    useState(transactions);
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -207,18 +246,68 @@ const PaymentsPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     if (selectedTransaction) {
-      setTransactions((prev) =>
-        prev.map((transaction) =>
-          transaction.id === selectedTransaction.id
-            ? { ...transaction, status: editedStatus }
-            : transaction
-        )
-      );
-      setIsModalOpen(false);
+      const token = localStorage.getItem("token");
+      try {
+        console.log("Updating transaction:", {
+          transactionId: selectedTransaction.id,
+          status: editedStatus,
+        }); // Debug log
+        const response = await apiClient.put(
+          `/payments/update-status/${selectedTransaction.id}`,
+          { status: editedStatus },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log("Update response:", response.data); // Debug log
+        setTransactions((prev) =>
+          prev.map((transaction) =>
+            transaction.id === selectedTransaction.id
+              ? { ...transaction, status: editedStatus }
+              : transaction
+          )
+        );
+        setIsModalOpen(false);
+      } catch (err) {
+        const errorMessage = err.response
+          ? err.response.data.message || err.response.data
+          : err.message;
+        console.error(
+          "Failed to update status:",
+          err.response ? err.response.data : err
+        );
+        setError(
+          `Failed to update transaction status. Details: ${errorMessage}`
+        );
+      }
     }
   };
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center min-vh-100">
+        <div className="spinner-border text-success" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="d-flex justify-content-center align-items-center min-vh-100">
+        <div className="alert alert-danger" role="alert">
+          {error}
+          <button
+            className="btn btn-success ms-3"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-vh-100 bg-light">
@@ -259,7 +348,10 @@ const PaymentsPage = () => {
                     ETB {paymentSummary.totalPayments.toLocaleString()}
                   </h3>
                   <p className="summary-card-subtext text-success">
-                    +12.5% from last month
+                    {paymentSummary.totalPaymentsChange >= 0
+                      ? `+${paymentSummary.totalPaymentsChange}%`
+                      : `${paymentSummary.totalPaymentsChange}%`}{" "}
+                    from last month
                   </p>
                 </div>
               </div>
@@ -275,7 +367,12 @@ const PaymentsPage = () => {
                     {paymentSummary.successfulPayments.toLocaleString()}
                   </h3>
                   <p className="summary-card-subtext text-success">
-                    94.7% success rate
+                    {paymentSummary.successfulPaymentsPercentage}% of total
+                    payments (
+                    {paymentSummary.successfulPaymentsChange >= 0
+                      ? `+${paymentSummary.successfulPaymentsChange}%`
+                      : `${paymentSummary.successfulPaymentsChange}%`}{" "}
+                    from last month)
                   </p>
                 </div>
               </div>
@@ -307,7 +404,7 @@ const PaymentsPage = () => {
                     ETB {paymentSummary.totalRefunded.toLocaleString()}
                   </h3>
                   <p className="summary-card-subtext text-danger">
-                    5.2% of total payments
+                    {paymentSummary.refundedPercentage}% of total payments
                   </p>
                 </div>
               </div>
@@ -323,7 +420,10 @@ const PaymentsPage = () => {
                     ETB {paymentSummary.averageOrderValue.toLocaleString()}
                   </h3>
                   <p className="summary-card-subtext text-success">
-                    +8.2% from last month
+                    {paymentSummary.avgOrderValueChange >= 0
+                      ? `+${paymentSummary.avgOrderValueChange}%`
+                      : `${paymentSummary.avgOrderValueChange}%`}{" "}
+                    from last month
                   </p>
                 </div>
               </div>
@@ -339,46 +439,59 @@ const PaymentsPage = () => {
                     Payment transactions and refund requests via Chapa
                   </p>
                 </div>
-                <div className="d-flex gap-3 align-items-center">
-                  <div className="row">
-                    <div className="col-12 col-md-3 mb-2 mb-md-0">
-                      <div
-                        className="search-container"
-                        style={{ paddingRight: "10px" }}
-                      >
-                        <Search size={20} className="search-icon" />
-                        <input
-                          type="text"
-                          className="form-control search-input"
-                          placeholder="Search transactions..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          aria-label="Search transactions"
-                        />
-                      </div>
-                    </div>
-                    <div className="col-12 col-md-3">
-                      <div
-                        className="filter-container"
-                        style={{ paddingRight: "10px" }}
-                      >
-                        <Filter size={20} className="filter-icon" />
-                        <select
-                          className="form-select filter-select"
-                          value={statusFilter}
-                          onChange={(e) => setStatusFilter(e.target.value)}
-                          aria-label="Filter by status"
-                        >
-                          <option value="all">All Status</option>
-                          <option value="completed">Completed</option>
-                          <option value="pending">Pending</option>
-                          <option value="approved">Approved</option>
-                          <option value="processing">Processing</option>
-                          <option value="failed">Failed</option>
-                          <option value="rejected">Rejected</option>
-                        </select>
-                      </div>
-                    </div>
+                <div className="d-flex align-items-center gap-4">
+                  <div className="search-container">
+                    <Search
+                      size={16}
+                      className="search-icon"
+                      style={{ color: "#28a745" }}
+                    />
+                    <input
+                      type="text"
+                      className="form-control search-input"
+                      placeholder="Search transactions..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      aria-label="Search transactions"
+                    />
+                  </div>
+                  <div className="filter-container">
+                    <Filter
+                      size={16}
+                      className="filter-icon"
+                      style={{ color: "#28a745" }}
+                    />
+                    <select
+                      className="form-select filter-select"
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      aria-label="Filter by type"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="payment">Payment</option>
+                      <option value="refund">Refund</option>
+                    </select>
+                  </div>
+                  <div className="filter-container">
+                    <Filter
+                      size={16}
+                      className="filter-icon"
+                      style={{ color: "#28a745" }}
+                    />
+                    <select
+                      className="form-select filter-select"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      aria-label="Filter by status"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="completed">Completed</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="processing">Processing</option>
+                      <option value="failed">Failed</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -388,6 +501,15 @@ const PaymentsPage = () => {
                 <table className="table table-striped">
                   <thead>
                     <tr style={{ backgroundColor: "#f8f9fa" }}>
+                      <th
+                        style={{
+                          fontSize: "14px",
+                          color: "#6c757d",
+                          fontWeight: "normal",
+                        }}
+                      >
+                        #
+                      </th>
                       <th
                         style={{
                           fontSize: "14px",
@@ -491,12 +613,23 @@ const PaymentsPage = () => {
                   </thead>
                   <tbody>
                     {filteredTransactions.length > 0 ? (
-                      filteredTransactions.map((transaction) => (
+                      filteredTransactions.map((transaction, index) => (
                         <tr
                           key={transaction.id}
                           className="bg-white shadow-sm rounded-lg mb-2"
                           style={{ border: "1px solid #e9ecef" }}
                         >
+                          <td
+                            style={{
+                              fontSize: "14px",
+                              color: "#212529",
+                              padding: "12px",
+                            }}
+                          >
+                            <div style={{ fontWeight: "bold" }}>
+                              {index + 1}
+                            </div>
+                          </td>
                           <td
                             style={{
                               fontSize: "14px",
@@ -714,12 +847,12 @@ const PaymentsPage = () => {
                         className="form-label"
                         style={{ fontSize: "14px", color: "#6c757d" }}
                       >
-                        Transaction ID
+                        Ref ID
                       </label>
                       <input
                         type="text"
                         className="form-control"
-                        value={selectedTransaction.id}
+                        value={selectedTransaction.refId || "N/A"}
                         readOnly
                         style={{
                           fontSize: "14px",
@@ -741,7 +874,7 @@ const PaymentsPage = () => {
                       <input
                         type="text"
                         className="form-control"
-                        value={selectedTransaction.orderId}
+                        value={selectedTransaction.orderId || "N/A"}
                         readOnly
                         style={{
                           fontSize: "14px",
@@ -763,7 +896,7 @@ const PaymentsPage = () => {
                       <input
                         type="text"
                         className="form-control"
-                        value={selectedTransaction.farmer}
+                        value={selectedTransaction.farmer || "Unknown Farmer"}
                         readOnly
                         style={{
                           fontSize: "14px",
@@ -785,7 +918,7 @@ const PaymentsPage = () => {
                       <input
                         type="text"
                         className="form-control"
-                        value={selectedTransaction.buyer}
+                        value={selectedTransaction.buyer || "Unknown Buyer"}
                         readOnly
                         style={{
                           fontSize: "14px",
@@ -807,7 +940,7 @@ const PaymentsPage = () => {
                       <input
                         type="text"
                         className="form-control"
-                        value={selectedTransaction.product}
+                        value={selectedTransaction.product || "Unknown Product"}
                         readOnly
                         style={{
                           fontSize: "14px",
@@ -829,7 +962,9 @@ const PaymentsPage = () => {
                       <input
                         type="text"
                         className="form-control"
-                        value={`ETB ${selectedTransaction.amount.toLocaleString()}`}
+                        value={`ETB ${(
+                          selectedTransaction.amount || 0
+                        ).toLocaleString()}`}
                         readOnly
                         style={{
                           fontSize: "14px",
@@ -851,7 +986,7 @@ const PaymentsPage = () => {
                       <input
                         type="text"
                         className="form-control"
-                        value={selectedTransaction.method}
+                        value={selectedTransaction.method || "N/A"}
                         readOnly
                         style={{
                           fontSize: "14px",
@@ -873,7 +1008,7 @@ const PaymentsPage = () => {
                       <input
                         type="text"
                         className="form-control"
-                        value={selectedTransaction.transactionId}
+                        value={selectedTransaction.transactionId || "N/A"}
                         readOnly
                         style={{
                           fontSize: "14px",
@@ -895,7 +1030,7 @@ const PaymentsPage = () => {
                       <input
                         type="text"
                         className="form-control"
-                        value={selectedTransaction.date}
+                        value={selectedTransaction.date || "N/A"}
                         readOnly
                         style={{
                           fontSize: "14px",
@@ -908,52 +1043,52 @@ const PaymentsPage = () => {
                       />
                     </div>
                     {selectedTransaction.type === "refund" && (
-                      <>
-                        <div className="mb-3">
-                          <label
-                            className="form-label"
-                            style={{ fontSize: "14px", color: "#6c757d" }}
-                          >
-                            Reason
-                          </label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={selectedTransaction.reason || ""}
-                            readOnly
-                            style={{
-                              fontSize: "14px",
-                              color: "#495057",
-                              borderColor: "#ced4da",
-                              padding: "6px 12px",
-                              borderRadius: "4px",
-                              backgroundColor: "#e9ecef",
-                            }}
-                          />
-                        </div>
-                        <div className="mb-3">
-                          <label
-                            className="form-label"
-                            style={{ fontSize: "14px", color: "#6c757d" }}
-                          >
-                            Requested By
-                          </label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={selectedTransaction.requestedBy || ""}
-                            readOnly
-                            style={{
-                              fontSize: "14px",
-                              color: "#495057",
-                              borderColor: "#ced4da",
-                              padding: "6px 12px",
-                              borderRadius: "4px",
-                              backgroundColor: "#e9ecef",
-                            }}
-                          />
-                        </div>
-                      </>
+                      <div className="mb-3">
+                        <label
+                          className="form-label"
+                          style={{ fontSize: "14px", color: "#6c757d" }}
+                        >
+                          Reason
+                        </label>
+                        <textarea
+                          className="form-control"
+                          value={selectedTransaction.reason || "N/A"}
+                          readOnly
+                          style={{
+                            fontSize: "14px",
+                            color: "#495057",
+                            borderColor: "#ced4da",
+                            padding: "6px 12px",
+                            borderRadius: "4px",
+                            backgroundColor: "#e9ecef",
+                            minHeight: "80px",
+                          }}
+                        />
+                      </div>
+                    )}
+                    {selectedTransaction.type === "refund" && (
+                      <div className="mb-3">
+                        <label
+                          className="form-label"
+                          style={{ fontSize: "14px", color: "#6c757d" }}
+                        >
+                          Requested By
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={`${selectedTransaction.buyer} (ID: ${selectedTransaction.buyerId})`}
+                          readOnly
+                          style={{
+                            fontSize: "14px",
+                            color: "#495057",
+                            borderColor: "#ced4da",
+                            padding: "6px 12px",
+                            borderRadius: "4px",
+                            backgroundColor: "#e9ecef",
+                          }}
+                        />
+                      </div>
                     )}
                     <div className="mb-3">
                       <label
@@ -975,12 +1110,20 @@ const PaymentsPage = () => {
                           borderRadius: "4px",
                         }}
                       >
-                        <option value="completed">Completed</option>
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
-                        <option value="processing">Processing</option>
-                        <option value="failed">Failed</option>
-                        <option value="rejected">Rejected</option>
+                        {selectedTransaction.type === "payment" ? (
+                          <>
+                            <option value="pending">Pending</option>
+                            <option value="processing">Processing</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                          </>
+                        )}
                       </select>
                     </div>
                   </div>

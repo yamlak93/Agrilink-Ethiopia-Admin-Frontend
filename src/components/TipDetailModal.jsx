@@ -7,13 +7,13 @@ const TipDetailModal = ({ isOpen, onClose, tip }) => {
   // Map tip types to their respective icons
   const getIconForType = (type) => {
     switch (type) {
-      case "Farming Tips":
+      case "farmingTips":
         return <Leaf size={24} className="text-success" />;
-      case "Alert":
+      case "alert":
         return <Bell size={24} className="text-danger" />;
-      case "Resources":
+      case "resources":
         return <BookOpen size={24} className="text-primary" />;
-      case "Market Updates":
+      case "market updates":
         return <ShoppingBag size={24} className="text-purple" />;
       default:
         return <Leaf size={24} className="text-success" />;
@@ -69,7 +69,9 @@ const TipDetailModal = ({ isOpen, onClose, tip }) => {
               <label className="text-muted mb-2" style={{ fontSize: "0.9rem" }}>
                 Type
               </label>
-              <p style={{ color: "#2c3e50", fontWeight: "500" }}>{tip.type}</p>
+              <p style={{ color: "#2c3e50", fontWeight: "500" }}>
+                {tip.displayType}
+              </p>
             </div>
             <div className="mb-4">
               <label className="text-muted mb-2" style={{ fontSize: "0.9rem" }}>
@@ -85,7 +87,7 @@ const TipDetailModal = ({ isOpen, onClose, tip }) => {
                 {tip.description}
               </p>
             </div>
-            {tip.type === "Market Updates" && tip.marketDetails && (
+            {tip.type === "market updates" && tip.marketDetails && (
               <>
                 <div className="mb-4">
                   <label
@@ -107,17 +109,6 @@ const TipDetailModal = ({ isOpen, onClose, tip }) => {
                   </label>
                   <p style={{ color: "#2c3e50", fontWeight: "500" }}>
                     {tip.marketDetails.price}
-                  </p>
-                </div>
-                <div className="mb-4">
-                  <label
-                    className="text-muted mb-2"
-                    style={{ fontSize: "0.9rem" }}
-                  >
-                    Trend
-                  </label>
-                  <p style={{ color: "#2c3e50", fontWeight: "500" }}>
-                    {tip.marketDetails.trend}
                   </p>
                 </div>
               </>

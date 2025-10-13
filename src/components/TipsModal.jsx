@@ -1,27 +1,55 @@
 import React, { useState, useEffect } from "react";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 const TipsModal = ({ isOpen, onClose, onSave, initialTip }) => {
-  const [tipData, setTipData] = useState(initialTip);
+  const [tip, setTip] = useState({
+    type: initialTip?.type || "",
+    title: initialTip?.title || "",
+    description: initialTip?.description || "",
+    productName: initialTip?.productName || "",
+    price: initialTip?.price?.replace(/ ETB\/.*/, "") || "", // Strip unit for editing
+    unit: initialTip?.unit || "",
+  });
+
+  const categories = [
+    { value: "farmingTips", label: "Farming Tips" },
+    { value: "alert", label: "Alert" },
+    { value: "resources", label: "Resources" },
+    { value: "market updates", label: "Market Updates" },
+  ];
+
+  const isMarketUpdate = tip.type === "market updates";
 
   useEffect(() => {
-    setTipData(initialTip);
+    setTip({
+      type: initialTip?.type || "",
+      title: initialTip?.title || "",
+      description: initialTip?.description || "",
+      productName: initialTip?.productName || "",
+      price: initialTip?.price?.replace(/ ETB\/.*/, "") || "",
+      unit: initialTip?.unit || "",
+    });
   }, [initialTip]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setTipData((prevData) => ({ ...prevData, [name]: value }));
+    setTip((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleMarketChange = (e) => {
-    const { name, value } = e.target;
-    setTipData((prevData) => ({
-      ...prevData,
-      marketDetails: { ...prevData.marketDetails, [name]: value },
-    }));
-  };
-
-  const handleSave = () => {
-    onSave(tipData);
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isMarketUpdate && (!tip.productName || !tip.price || !tip.unit)) {
+      alert("Product Name, Price, and Unit are required for Market Updates.");
+      return;
+    }
+    if (!isMarketUpdate && (!tip.title || !tip.description)) {
+      alert("Title and Description are required for non-Market Updates tips.");
+      return;
+    }
+    onSave({
+      ...tip,
+      price: isMarketUpdate ? parseFloat(tip.price) : tip.price, // Ensure price is a number for market updates
+    });
   };
 
   if (!isOpen) return null;
@@ -35,116 +63,129 @@ const TipsModal = ({ isOpen, onClose, onSave, initialTip }) => {
       <div className="modal-dialog modal-dialog-centered">
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title fw-bold">Create New Tip</h5>
+            <h5 className="modal-title fw-bold">{initialTip ? "Tips" : ""}</h5>
             <button
               type="button"
               className="btn-close"
               onClick={onClose}
             ></button>
           </div>
-          <div className="modal-body">
-            <form>
+          <form onSubmit={handleSubmit}>
+            <div className="modal-body">
               <div className="mb-3">
-                <label className="form-label">Type</label>
+                <label htmlFor="type" className="form-label">
+                  Type
+                </label>
                 <select
-                  className="form-select"
+                  id="type"
                   name="type"
-                  value={tipData.type}
+                  className="form-select"
+                  value={tip.type}
                   onChange={handleChange}
+                  required
                 >
                   <option value="">Select Type</option>
-                  <option value="Farming Tips">Farming Tips</option>
-                  <option value="Alert">Alert</option>
-                  <option value="Resources">Resources</option>
-                  <option value="Market Updates">Market Updates</option>
+                  {categories.map((cat) => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
+                  ))}
                 </select>
               </div>
-              {tipData.type === "Market Updates" ? (
+              {!isMarketUpdate && (
                 <>
                   <div className="mb-3">
-                    <label className="form-label">Product Name</label>
+                    <label htmlFor="title" className="form-label">
+                      Title
+                    </label>
                     <input
                       type="text"
+                      id="title"
+                      name="title"
                       className="form-control"
-                      name="productName"
-                      value={tipData.marketDetails?.productName || ""}
-                      onChange={handleMarketChange}
-                      placeholder="Enter product name..."
+                      value={tip.title}
+                      onChange={handleChange}
+                      required
                     />
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Price</label>
-                    <input
-                      type="number"
+                    <label htmlFor="description" className="form-label">
+                      Description
+                    </label>
+                    <textarea
+                      id="description"
+                      name="description"
                       className="form-control"
-                      name="price"
-                      value={tipData.marketDetails?.price || ""}
-                      onChange={handleMarketChange}
-                      placeholder="Enter price..."
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Trend</label>
-                    <select
-                      className="form-select"
-                      name="trend"
-                      value={tipData.marketDetails?.trend || ""}
-                      onChange={handleMarketChange}
-                    >
-                      <option value="">Select Trend</option>
-                      <option value="Stable">Stable</option>
-                      <option value="Falling">Falling</option>
-                      <option value="Rising">Rising</option>
-                    </select>
+                      value={tip.description}
+                      onChange={handleChange}
+                      rows="4"
+                      required
+                    ></textarea>
                   </div>
                 </>
-              ) : (
+              )}
+              {isMarketUpdate && (
                 <>
                   <div className="mb-3">
-                    <label className="form-label">Title</label>
+                    <label htmlFor="productName" className="form-label">
+                      Product Name
+                    </label>
                     <input
                       type="text"
+                      id="productName"
+                      name="productName"
                       className="form-control"
-                      name="title"
-                      value={tipData.title}
+                      value={tip.productName}
                       onChange={handleChange}
-                      placeholder="Enter tip title..."
+                      required
                     />
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Description</label>
-                    <textarea
+                    <label htmlFor="price" className="form-label">
+                      Price (ETB)
+                    </label>
+                    <input
+                      type="number"
+                      id="price"
+                      name="price"
                       className="form-control"
-                      name="description"
-                      rows="4"
-                      value={tipData.description}
+                      value={tip.price}
                       onChange={handleChange}
-                      placeholder="Enter tip description..."
+                      step="0.01"
+                      min="0"
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label htmlFor="unit" className="form-label">
+                      Unit
+                    </label>
+                    <input
+                      type="text"
+                      id="unit"
+                      name="unit"
+                      className="form-control"
+                      value={tip.unit}
+                      onChange={handleChange}
+                      required
                     />
                   </div>
                 </>
               )}
-            </form>
-          </div>
-          <div className="modal-footer">
-            <button className="btn btn-secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              className="btn btn-success"
-              onClick={handleSave}
-              disabled={
-                tipData.type === "Market Updates"
-                  ? !tipData.type ||
-                    !tipData.marketDetails?.productName ||
-                    !tipData.marketDetails?.price ||
-                    !tipData.marketDetails?.trend
-                  : !tipData.type || !tipData.title || !tipData.description
-              }
-            >
-              Confirm
-            </button>
-          </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onClose}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-success">
+                {initialTip ? "Add Tip" : "Add"}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

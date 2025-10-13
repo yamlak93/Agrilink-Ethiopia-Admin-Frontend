@@ -354,6 +354,16 @@ const ManageProducts = () => {
                           width: "50px",
                         }}
                       >
+                        #
+                      </th>
+                      <th
+                        style={{
+                          fontSize: "14px",
+                          color: "#6c757d",
+                          fontWeight: "normal",
+                          width: "50px",
+                        }}
+                      >
                         Image
                       </th>
                       <th
@@ -432,8 +442,11 @@ const ManageProducts = () => {
                   </thead>
                   <tbody>
                     {filteredProducts.length > 0 ? (
-                      filteredProducts.map((product) => (
+                      filteredProducts.map((product, index) => (
                         <tr key={product.id}>
+                          <td style={{ fontSize: "14px", color: "#212529" }}>
+                            {index + 1}
+                          </td>
                           <td
                             style={{
                               fontSize: "14px",

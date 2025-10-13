@@ -336,6 +336,7 @@ const ManageUsers = () => {
                 <table className="table table-striped">
                   <thead>
                     <tr style={{ backgroundColor: "#f8f9fa" }}>
+                      <th style={{ fontSize: "14px", color: "#6c757d" }}>#</th>
                       <th style={{ fontSize: "14px", color: "#6c757d" }}>ID</th>
                       <th style={{ fontSize: "14px", color: "#6c757d" }}>
                         Name
@@ -360,10 +361,14 @@ const ManageUsers = () => {
                       </th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {filteredUsers.length > 0 ? (
-                      filteredUsers.map((user) => (
+                      filteredUsers.map((user, index) => (
                         <tr key={user.id}>
+                          <td style={{ fontSize: "14px", color: "#212529" }}>
+                            {index + 1}
+                          </td>
                           <td style={{ fontSize: "14px", color: "#212529" }}>
                             {user.id}
                           </td>

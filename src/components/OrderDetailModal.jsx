@@ -74,16 +74,18 @@ const OrderDetailModal = ({
                 padding: "4px 8px",
                 borderRadius: "12px",
                 color:
-                  order.status === "Cancelled" || order.status === "Pending"
+                  order.status === "cancelled" || order.status === "pending"
                     ? "#fff"
                     : "#28a745",
                 backgroundColor:
-                  order.status === "Cancelled"
+                  order.status === "cancelled"
                     ? "#dc3545"
-                    : order.status === "Pending"
+                    : order.status === "pending"
                     ? "#ffc107"
-                    : order.status === "Shipped"
+                    : order.status === "in transit"
                     ? "#007bff"
+                    : order.status === "processing"
+                    ? "#17a2b8"
                     : "#e6ffe6",
                 display: "inline-flex",
                 alignItems: "center",
@@ -127,8 +129,8 @@ const OrderDetailModal = ({
               {order.quantity}
             </p>
             <p>
-              <strong style={{ color: "#6c757d" }}>Price:</strong> $
-              {order.price}
+              <strong style={{ color: "#6c757d" }}>Total Price:</strong> $
+              {order.totalPrice.toFixed(2)}
             </p>
             <p>
               <strong style={{ color: "#6c757d" }}>Buyer Name:</strong>{" "}
@@ -147,6 +149,10 @@ const OrderDetailModal = ({
               <span style={getPaymentStatusStyle()}>
                 {order.paymentStatus || "Pending"}
               </span>
+            </p>
+            <p>
+              <strong style={{ color: "#6c757d" }}>Status Changed Date:</strong>{" "}
+              {order.updatedAt || "Not updated yet"} {/* Display updatedAt */}
             </p>
           </div>
           <div
@@ -182,10 +188,11 @@ const OrderDetailModal = ({
                 value={order.status}
                 onChange={(e) => onStatusChange(e.target.value)}
               >
-                <option value="Pending">Pending</option>
-                <option value="Shipped">Shipped</option>
-                <option value="Delivered">Delivered</option>
-                <option value="Cancelled">Cancelled</option>
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="in transit">In Transit</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
               </select>
             </div>
             <div style={{ display: "flex", gap: "15px" }}>

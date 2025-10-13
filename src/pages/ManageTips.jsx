@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import "../Css/Devices.css"; // Import Devices.css for ms-md-250
+import "../Css/Devices.css";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import TipsModal from "../components/TipsModal";
@@ -7,65 +7,10 @@ import TipsCard from "../components/TipsCard";
 import TipDetailModal from "../components/TipDetailModal";
 import { Search, Plus } from "lucide-react";
 import "bootstrap/dist/css/bootstrap.min.css";
-
-// Mock data for the tips
-const mockTips = [
-  {
-    id: "TIP-001",
-    type: "Farming Tips",
-    title: "Effective Irrigation Methods for Teff",
-    date: "2023-05-10",
-    description:
-      "Teff requires careful irrigation. For best results, use furrow irrigation during the early stages and reduce water as the crop matures.",
-  },
-  {
-    id: "TIP-002",
-    type: "Alert",
-    title: "Weather Alert: Heavy Rain Expected",
-    date: "2023-05-15",
-    description:
-      "Heavy rainfall is expected in the Amhara and Oromia regions over the next week. Farmers should secure their crops and prepare drainage systems.",
-  },
-  {
-    id: "TIP-003",
-    type: "Alert",
-    title: "Pest Alert: Locust Swarms",
-    date: "2023-05-12",
-    description:
-      "Locust swarms have been spotted in the eastern regions. Farmers should implement preventive measures and report sightings to local authorities.",
-  },
-  {
-    id: "TIP-004",
-    type: "Farming Tips",
-    title: "Organic Fertilizer Techniques",
-    date: "2023-05-08",
-    description:
-      "Learn how to create effective organic fertilizers using local materials. This guide covers compost preparation, application timing, and quantity recommendations.",
-  },
-  {
-    id: "TIP-005",
-    type: "Market Updates",
-    title: "Market Prices Update",
-    date: "2023-05-16",
-    description: "Current market prices for major crops.",
-    marketDetails: {
-      productName: "Teff",
-      price: "40 ETB/kg",
-      trend: "Stable",
-    },
-  },
-  {
-    id: "TIP-006",
-    type: "Resources",
-    title: "Guide to Local Seed Suppliers",
-    date: "2023-05-17",
-    description:
-      "A comprehensive list of trusted local seed suppliers for farmers, including contact details and available seed varieties.",
-  },
-];
+import apiClient from "../api/api";
 
 const ManageTips = () => {
-  const [tips, setTips] = useState(mockTips);
+  const [tips, setTips] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,50 +18,141 @@ const ManageTips = () => {
     type: "",
     title: "",
     description: "",
+    productName: "",
+    price: "",
+    unit: "",
   });
   const [editTip, setEditTip] = useState(null);
   const [deleteTip, setDeleteTip] = useState(null);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedTip, setSelectedTip] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const tabs = ["All", "Farming Tips", "Alert", "Resources", "Market Updates"];
+  const typeMap = {
+    "Farming Tips": "farmingTips",
+    Alert: "alert",
+    Resources: "resources",
+    "Market Updates": "market updates",
+  };
+  const displayTypeMap = {
+    farmingTips: "Farming Tips",
+    alert: "Alert",
+    resources: "Resources",
+    "market updates": "Market Updates",
+  };
 
   useEffect(() => {
-    let filtered = mockTips;
+    let isMounted = true;
+    const fetchTips = async () => {
+      setLoading(true);
+      setError(null);
 
-    if (activeTab === "Farming Tips") {
-      filtered = filtered.filter((tip) => tip.type === "Farming Tips");
-    } else if (activeTab === "Alert") {
-      filtered = filtered.filter((tip) => tip.type === "Alert");
-    } else if (activeTab === "Resources") {
-      filtered = filtered.filter((tip) => tip.type === "Resources");
-    } else if (activeTab === "Market Updates") {
-      filtered = filtered.filter((tip) => tip.type === "Market Updates");
-    }
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Authentication required. Please log in.");
+        window.location.href = "/admin/login";
+        return;
+      }
 
-    if (searchQuery) {
-      const lowercasedQuery = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (tip) =>
-          tip.title.toLowerCase().includes(lowercasedQuery) ||
-          tip.description.toLowerCase().includes(lowercasedQuery) ||
-          tip.type.toLowerCase().includes(lowercasedQuery)
-      );
-    }
+      const headers = { Authorization: `Bearer ${token}` };
 
-    setTips(filtered);
-  }, [activeTab, searchQuery]);
+      try {
+        const response = await apiClient.get("/tips/allTips", { headers });
+        console.log("Fetched all tips:", response.data.tips);
+        const fetchedTips = response.data.tips.map((tip) => ({
+          id: tip.id,
+          type: tip.type,
+          displayType: displayTypeMap[tip.type] || tip.type,
+          title:
+            tip.title || `Market Update for ${tip.productName || "Unknown"}`,
+          description: tip.description || "No description available.",
+          date: tip.date || new Date().toISOString().split("T")[0],
+          marketDetails:
+            tip.type === "market updates"
+              ? {
+                  productName: tip.productName || "N/A",
+                  price: tip.price || "N/A",
+                  unit: tip.unit || "N/A",
+                }
+              : null,
+        }));
+
+        if (isMounted) {
+          setTips(fetchedTips);
+        }
+      } catch (err) {
+        console.error("Failed to fetch tips:", err.response?.data || err);
+        if (err.response?.status === 401) {
+          setError("Authentication failed. Please log in again.");
+          window.location.href = "/admin/login";
+        } else {
+          setError(
+            `Failed to load tips. ${err.response?.data?.message || err.message}`
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchTips().catch((err) => {
+      if (isMounted) {
+        console.error("Uncaught error in fetch:", err);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const filteredTips = tips.filter((tip) => {
+    const tabType = typeMap[activeTab] || activeTab.toLowerCase();
+    const matchesTab = activeTab === "All" || tip.type === tabType;
+    const matchesSearch = searchQuery
+      ? (tip.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (tip.description || "")
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
+        (tip.displayType || "")
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
+        (tip.marketDetails &&
+          (tip.marketDetails.productName || "")
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()))
+      : true;
+    return matchesTab && matchesSearch;
+  });
 
   const handleOpenModal = () => {
-    setNewTip({ type: "", title: "", description: "" });
+    setNewTip({
+      type: "",
+      title: "",
+      description: "",
+      productName: "",
+      price: "",
+      unit: "",
+    });
     setEditTip(null);
     setIsModalOpen(true);
   };
 
   const handleEditTip = (tip) => {
     setEditTip(tip);
-    setNewTip({ ...tip });
+    setNewTip({
+      type: tip.type,
+      title: tip.title,
+      description: tip.description,
+      productName: tip.marketDetails?.productName || "",
+      price: tip.marketDetails?.price
+        ? tip.marketDetails.price.replace(/ ETB\/.*/, "")
+        : "",
+      unit: tip.marketDetails?.unit || "",
+    });
     setIsModalOpen(true);
   };
 
@@ -125,11 +161,23 @@ const ManageTips = () => {
     setIsConfirmDeleteOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteTip) {
-      setTips(tips.filter((t) => t.id !== deleteTip.id));
-      setIsConfirmDeleteOpen(false);
-      setDeleteTip(null);
+      const token = localStorage.getItem("token");
+      try {
+        await apiClient.delete(`/tips/${deleteTip.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setTips(tips.filter((t) => t.id !== deleteTip.id));
+        setIsConfirmDeleteOpen(false);
+        setDeleteTip(null);
+      } catch (err) {
+        console.error(
+          "Failed to delete tip:",
+          err.response?.data || err.message
+        );
+        setError("Failed to delete tip.");
+      }
     }
   };
 
@@ -138,33 +186,79 @@ const ManageTips = () => {
     setDeleteTip(null);
   };
 
-  const handleSaveTip = (tipData) => {
-    if (tipData.type && tipData.title && tipData.description) {
+  const handleSaveTip = async (tipData) => {
+    const token = localStorage.getItem("token");
+    const payload = {
+      title: tipData.title,
+      content: tipData.description,
+      category: tipData.type,
+      productName: tipData.productName,
+      price: tipData.price,
+      unit: tipData.unit,
+    };
+    try {
       if (editTip) {
         // Update existing tip
+        await apiClient.put(`/tips/${editTip.id}`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         setTips(
           tips.map((t) =>
             t.id === editTip.id
               ? {
                   ...t,
-                  ...tipData,
+                  title: tipData.title,
+                  description: tipData.description,
+                  type: tipData.type,
+                  displayType: displayTypeMap[tipData.type] || tipData.type,
                   date: new Date().toISOString().split("T")[0],
+                  marketDetails:
+                    tipData.type === "market updates"
+                      ? {
+                          productName: tipData.productName,
+                          price: `${tipData.price} ETB/${tipData.unit}`,
+                          unit: tipData.unit,
+                        }
+                      : null,
                 }
               : t
           )
         );
       } else {
         // Add new tip
+        const response = await apiClient.post("/tips/create", payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         setTips([
           ...tips,
           {
-            id: `TIP-${tips.length + 1}`.padStart(7, "0"),
-            ...tipData,
+            id: response.data.tipId,
+            type: tipData.type,
+            displayType: displayTypeMap[tipData.type] || tipData.type,
+            title:
+              tipData.title ||
+              `Market Update for ${tipData.productName || "Unknown"}`,
+            description:
+              tipData.description ||
+              `Current price for ${tipData.productName || "Unknown"} is ${
+                tipData.price || "N/A"
+              } ETB per ${tipData.unit || "N/A"}.`,
             date: new Date().toISOString().split("T")[0],
+            marketDetails:
+              tipData.type === "market updates"
+                ? {
+                    productName: tipData.productName,
+                    price: `${tipData.price} ETB/${tipData.unit}`,
+                    unit: tipData.unit,
+                  }
+                : null,
           },
         ]);
       }
       setIsModalOpen(false);
+    } catch (err) {
+      console.error("Failed to save tip:", err.response?.data || err.message);
+      setError("Failed to save tip.");
     }
   };
 
@@ -173,6 +267,32 @@ const ManageTips = () => {
     setIsDetailModalOpen(true);
   };
 
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center min-vh-100">
+        <div className="spinner-border text-success" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="d-flex justify-content-center align-items-center min-vh-100">
+        <div className="alert alert-danger" role="alert">
+          {error}
+          <button
+            className="btn btn-success ms-3"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <Navbar />
@@ -180,7 +300,7 @@ const ManageTips = () => {
         <Sidebar />
         <div
           className="container-fluid p-4 ms-md-250"
-          style={{ marginTop: "60px" }} // Keep marginTop for navbar offset
+          style={{ marginTop: "60px" }}
         >
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div>
@@ -251,8 +371,8 @@ const ManageTips = () => {
             </div>
             <div className="card-body">
               <div className="row g-4">
-                {tips.length > 0 ? (
-                  tips.map((tip) => (
+                {filteredTips.length > 0 ? (
+                  filteredTips.map((tip) => (
                     <div key={tip.id} className="col-12 col-md-6 col-lg-4">
                       <TipsCard
                         tip={tip}

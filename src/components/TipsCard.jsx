@@ -2,31 +2,30 @@ import React, { useState } from "react";
 import {
   MoreHorizontal,
   Leaf,
-  CloudRain,
   Bell,
-  ShoppingBag,
   BookOpen,
+  ShoppingBag,
   Edit2,
   Trash2,
 } from "lucide-react";
 
 const typeStyles = {
-  "Farming Tips": {
+  farmingTips: {
     icon: <Leaf size={20} className="text-success" />,
     iconBg: "bg-light",
     textColor: "text-success",
   },
-  Alert: {
+  alert: {
     icon: <Bell size={20} className="text-danger" />,
     iconBg: "bg-light",
     textColor: "text-danger",
   },
-  Resources: {
+  resources: {
     icon: <BookOpen size={20} className="text-primary" />,
     iconBg: "bg-light",
     textColor: "text-primary",
   },
-  "Market Updates": {
+  "market updates": {
     icon: <ShoppingBag size={20} className="text-purple" />,
     iconBg: "bg-light",
     textColor: "text-purple",
@@ -41,10 +40,10 @@ const TipsCard = ({ tip, onEdit, onDelete, onViewDetails }) => {
   };
 
   const getBadgeText = (type) => {
-    if (type === "Farming Tips") return "Farming Tip";
-    if (type === "Alert") return "Alert";
-    if (type === "Resources") return "Resource";
-    if (type === "Market Updates") return "Market Update";
+    if (type === "farmingTips") return "Farming Tip";
+    if (type === "alert") return "Alert";
+    if (type === "resources") return "Resource";
+    if (type === "market updates") return "Market Update";
     return type;
   };
 
@@ -108,6 +107,14 @@ const TipsCard = ({ tip, onEdit, onDelete, onViewDetails }) => {
           Posted on {tip.date}
         </p>
         <p className="card-text text-secondary mb-3">{tip.description}</p>
+        {tip.type === "market updates" && tip.marketDetails && (
+          <div className="mb-3">
+            <p className="text-secondary">
+              Product: {tip.marketDetails.productName}
+            </p>
+            <p className="text-secondary">Price: {tip.marketDetails.price}</p>
+          </div>
+        )}
         <div className="mt-auto">
           <button
             className="btn btn-outline-secondary w-100"
