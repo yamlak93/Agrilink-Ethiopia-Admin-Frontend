@@ -1,183 +1,485 @@
-import { Truck, Calendar } from "lucide-react";
+import React, { useRef } from "react";
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import { Download, FileText } from "lucide-react";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
-const DeliveryReport = ({ delivery, deliverySuccess }) => (
-  <div className="mb-4">
-    <div className="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4 mb-4">
-      <div className="col">
-        <div className="card summary-card h-100">
-          <div className="summary-card-header">
-            <h6 className="summary-card-title">Pending Deliveries</h6>
-            <Truck size={24} className="summary-card-icon" />
-          </div>
-          <div className="summary-card-body">
-            <h3 className="summary-card-value">{delivery.pending}</h3>
-            <p className="summary-card-subtext text-muted">Awaiting pickup</p>
-          </div>
-        </div>
-      </div>
-      <div className="col">
-        <div className="card summary-card h-100">
-          <div className="summary-card-header">
-            <h6 className="summary-card-title">In Transit</h6>
-            <Truck size={24} className="summary-card-icon" />
-          </div>
-          <div className="summary-card-body">
-            <h3 className="summary-card-value">{delivery.inTransit}</h3>
-            <p className="summary-card-subtext text-muted">
-              Currently being delivered
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="col">
-        <div className="card summary-card h-100">
-          <div className="summary-card-header">
-            <h6 className="summary-card-title">Delivered</h6>
-            <Truck size={24} className="summary-card-icon" />
-          </div>
-          <div className="summary-card-body">
-            <h3 className="summary-card-value">{delivery.delivered}</h3>
-            <p className="summary-card-subtext text-muted">
-              Successfully completed
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="col">
-        <div className="card summary-card h-100">
-          <div className="summary-card-header">
-            <h6 className="summary-card-title">Avg. Delivery Time</h6>
-            <Calendar size={24} className="summary-card-icon" />
-          </div>
-          <div className="summary-card-body">
-            <h3 className="summary-card-value">
-              {delivery.averageDeliveryTime} days
-            </h3>
-            <p className="summary-card-subtext text-muted">
-              From order to delivery
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div className="row row-cols-1 row-cols-lg-2 g-4">
-      <div className="col">
-        <div className="card">
-          <div className="card-header">
-            <h5 className="card-title">Delivery Success Rate</h5>
-            <p className="card-text text-muted">
-              Overall delivery performance metrics
-            </p>
-          </div>
-          <div className="card-body">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <span>Success Rate</span>
-              <span className="text-success fw-bold h4">
-                {deliverySuccess}%
-              </span>
-            </div>
-            <div className="progress">
-              <div
-                className="progress-bar bg-success"
-                role="progressbar"
-                style={{ width: `${deliverySuccess}%` }}
-                aria-valuenow={deliverySuccess}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              ></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="col">
-        <div className="card">
-          <div className="card-header">
-            <h5 className="card-title">Regional Delivery Performance</h5>
-            <p className="card-text text-muted">Delivery metrics by region</p>
-          </div>
-          <div className="card-body">
-            <div className="table-responsive">
-              <table className="table table-striped">
-                <thead>
-                  <tr style={{ backgroundColor: "#f8f9fa" }}>
-                    <th
-                      style={{
-                        fontSize: "14px",
-                        color: "#6c757d",
-                        fontWeight: "normal",
-                      }}
-                    >
-                      Region
-                    </th>
-                    <th
-                      style={{
-                        fontSize: "14px",
-                        color: "#6c757d",
-                        fontWeight: "normal",
-                        textAlign: "right",
-                      }}
-                    >
-                      Deliveries
-                    </th>
-                    <th
-                      style={{
-                        fontSize: "14px",
-                        color: "#6c757d",
-                        fontWeight: "normal",
-                        textAlign: "right",
-                      }}
-                    >
-                      Avg. Time
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {delivery.deliveryRegions.map((region, index) => (
-                    <tr
-                      key={index}
-                      className="bg-white shadow-sm rounded-lg mb-2"
-                      style={{ border: "1px solid #e9ecef" }}
-                    >
-                      <td
-                        style={{
-                          fontSize: "14px",
-                          color: "#212529",
-                          padding: "12px",
-                        }}
-                      >
-                        {region.region}
-                      </td>
-                      <td
-                        style={{
-                          fontSize: "14px",
-                          color: "#212529",
-                          padding: "12px",
-                          textAlign: "right",
-                        }}
-                      >
-                        {region.deliveries.toLocaleString()}
-                      </td>
-                      <td
-                        style={{
-                          fontSize: "14px",
-                          color: "#212529",
-                          padding: "12px",
-                          textAlign: "right",
-                        }}
-                      >
-                        {region.avgTime}d
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
 );
+
+const DeliveryReport = ({ delivery = {}, startDate, endDate }) => {
+  const {
+    pending = 0,
+    inTransit = 0,
+    delivered = 0,
+    cancelled = 0,
+    averageDeliveryTime = 0,
+    deliveryRegions = [],
+    deliverySuccess = 0, // Default value to prevent undefined error
+  } = delivery;
+  const chartRef = useRef(null);
+
+  // Chart data for Delivery Statistics
+  const chartData = {
+    labels: ["Pending", "In Transit", "Delivered", "Cancelled"],
+    datasets: [
+      {
+        label: "Deliveries",
+        data: [pending, inTransit, delivered, cancelled],
+        backgroundColor: [
+          "rgba(255, 99, 132, 0.6)",
+          "rgba(54, 162, 235, 0.6)",
+          "rgba(75, 192, 192, 0.6)",
+          "rgba(255, 205, 86, 0.6)",
+        ],
+        borderColor: [
+          "rgba(255, 99, 132, 1)",
+          "rgba(54, 162, 235, 1)",
+          "rgba(75, 192, 192, 1)",
+          "rgba(255, 205, 86, 1)",
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { position: "top" },
+      title: {
+        display: true,
+        text: "Delivery Statistics",
+      },
+    },
+    scales: { y: { beginAtZero: true } },
+  };
+
+  // Function to download PDF
+  const downloadPDF = () => {
+    if (
+      !pending &&
+      !inTransit &&
+      !delivered &&
+      !cancelled &&
+      deliveryRegions.length === 0
+    ) {
+      alert("Cannot export report. No data available.");
+      return;
+    }
+
+    const reportTitle = "AGRILINK ETHIOPIA";
+    const reportType = "Delivery Analytics Report";
+    const period = `${startDate} to ${endDate}`; // Use passed startDate and endDate
+    const filePeriod = `${new Date().toISOString().split("T")[0]}`;
+    const pageHeight = 297;
+    const bottomMargin = 20;
+    const maxY = pageHeight - bottomMargin;
+
+    const doc = new jsPDF();
+    let y = 20;
+
+    const checkPageOverflow = () => {
+      if (y > maxY) {
+        doc.addPage();
+        y = 20;
+        addHeaderFooter();
+      }
+    };
+
+    const addHeaderFooter = () => {
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `Page ${doc.internal.getNumberOfPages()}`,
+        doc.internal.pageSize.width - 30,
+        pageHeight - 10,
+        { align: "right" }
+      );
+      doc.text("Generated by AgriLink Ethiopia", 20, pageHeight - 10);
+    };
+
+    addHeaderFooter();
+
+    doc.setFontSize(28);
+    doc.setTextColor(0, 128, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text(reportTitle, doc.internal.pageSize.width / 2, y, {
+      align: "center",
+    });
+    y += 15;
+
+    doc.setFontSize(18);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text(reportType, doc.internal.pageSize.width / 2, y, {
+      align: "center",
+    });
+    y += 10;
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "italic");
+    doc.text(`Period: ${period}`, doc.internal.pageSize.width / 2, y, {
+      align: "center",
+    });
+    y += 15;
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "italic");
+    doc.text(
+      `Report Generated on Date: ${filePeriod}`,
+      doc.internal.pageSize.width / 2,
+      y,
+      {
+        align: "center",
+      }
+    );
+    y += 15;
+
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(0, 128, 0);
+    doc.line(20, y, doc.internal.pageSize.width - 20, y);
+    y += 10;
+
+    doc.setFontSize(16);
+    doc.setTextColor(0, 128, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text("Delivery Statistics Overview", 20, y);
+    y += 8;
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    doc.text("Key metrics showcasing delivery performance", 20, y);
+    y += 8;
+    checkPageOverflow();
+
+    doc.text(`Pending: ${pending.toLocaleString()}`, 20, y);
+    y += 8;
+    checkPageOverflow();
+    doc.text(`In Transit: ${inTransit.toLocaleString()}`, 20, y);
+    y += 8;
+    checkPageOverflow();
+    doc.text(`Delivered: ${delivered.toLocaleString()}`, 20, y);
+    y += 8;
+    checkPageOverflow();
+    doc.text(`Cancelled: ${cancelled.toLocaleString()}`, 20, y);
+    y += 8;
+    checkPageOverflow();
+    doc.text(`Average Delivery Time: ${averageDeliveryTime} days`, 20, y);
+    y += 8;
+    checkPageOverflow();
+    doc.text(`Delivery Success Rate: ${deliverySuccess}%`, 20, y);
+    y += 8;
+    checkPageOverflow();
+
+    if (chartRef.current) {
+      const chartImage = chartRef.current.toBase64Image();
+      doc.addImage(chartImage, "PNG", 20, y, 170, 85);
+      y += 90;
+      checkPageOverflow();
+    } else {
+      doc.text(
+        "Delivery statistics chart not available in this export.",
+        20,
+        y
+      );
+      y += 10;
+      checkPageOverflow();
+    }
+
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(0, 128, 0);
+    doc.line(20, y, doc.internal.pageSize.width - 20, y);
+    y += 10;
+    checkPageOverflow();
+
+    doc.setFontSize(16);
+    doc.setTextColor(0, 128, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text("Top Delivery Regions", 20, y);
+    y += 8;
+    checkPageOverflow();
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    doc.text("Delivery performance by region", 20, y);
+    y += 8;
+    checkPageOverflow();
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Region", 20, y);
+    doc.text("Deliveries", 120, y, { align: "right" });
+    doc.text("Avg Time (days)", 170, y, { align: "right" });
+    y += 6;
+    doc.setLineWidth(0.2);
+    doc.line(20, y, 190, y);
+    y += 4;
+    checkPageOverflow();
+
+    // Fix for PDF export: Convert avgTime to number and handle undefined
+    doc.setFont("helvetica", "normal");
+    deliveryRegions.forEach((region) => {
+      const avgTime = Number(region.avgTime) || 0;
+      doc.text(region.region || "N/A", 20, y);
+      doc.text((region.deliveries || 0).toLocaleString(), 120, y, {
+        align: "right",
+      });
+      doc.text(avgTime.toFixed(1), 170, y, { align: "right" }); // Use converted number
+      y += 8;
+      checkPageOverflow();
+    });
+
+    doc.save(`delivery_analytics_report_${filePeriod}.pdf`);
+  };
+
+  // Function to download CSV
+  const downloadCSV = () => {
+    if (
+      !pending &&
+      !inTransit &&
+      !delivered &&
+      !cancelled &&
+      deliveryRegions.length === 0
+    ) {
+      alert("Cannot export report. No data available.");
+      return;
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Metric,Value\n";
+    csvContent += `Pending,${pending}\n`;
+    csvContent += `In Transit,${inTransit}\n`;
+    csvContent += `Delivered,${delivered}\n`;
+    csvContent += `Cancelled,${cancelled}\n`;
+    csvContent += `Average Delivery Time,${averageDeliveryTime}\n`;
+    csvContent += `Delivery Success Rate,${deliverySuccess}%\n`;
+    if (deliveryRegions.length > 0) {
+      csvContent += "\nRegion,Deliveries,Avg Time (days)\n";
+      deliveryRegions.forEach((region) => {
+        const avgTime = Number(region.avgTime) || 0;
+        csvContent += `${region.region || "N/A"},${
+          region.deliveries || 0
+        },${avgTime.toFixed(1)}\n`;
+      });
+    }
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `delivery_analytics_report_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="mb-4">
+      <div className="d-flex justify-content-end gap-2 mb-4">
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={downloadPDF}
+          style={{ fontSize: "14px", padding: "6px 12px" }}
+        >
+          <Download size={16} className="me-2" />
+          Export PDF
+        </button>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={downloadCSV}
+          style={{ fontSize: "14px", padding: "6px 12px" }}
+        >
+          <FileText size={16} className="me-2" />
+          Export CSV
+        </button>
+      </div>
+
+      <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
+        <div className="col">
+          <div className="card summary-card h-100">
+            <div className="summary-card-header">
+              <h6 className="summary-card-title">Pending</h6>
+            </div>
+            <div className="summary-card-body">
+              <h3 className="summary-card-value">{pending.toLocaleString()}</h3>
+            </div>
+          </div>
+        </div>
+        <div className="col">
+          <div className="card summary-card h-100">
+            <div className="summary-card-header">
+              <h6 className="summary-card-title">In Transit</h6>
+            </div>
+            <div className="summary-card-body">
+              <h3 className="summary-card-value">
+                {inTransit.toLocaleString()}
+              </h3>
+            </div>
+          </div>
+        </div>
+        <div className="col">
+          <div className="card summary-card h-100">
+            <div className="summary-card-header">
+              <h6 className="summary-card-title">Delivered</h6>
+            </div>
+            <div className="summary-card-body">
+              <h3 className="summary-card-value">
+                {delivered.toLocaleString()}
+              </h3>
+            </div>
+          </div>
+        </div>
+        <div className="col">
+          <div className="card summary-card h-100">
+            <div className="summary-card-header">
+              <h6 className="summary-card-title">Cancelled</h6>
+            </div>
+            <div className="summary-card-body">
+              <h3 className="summary-card-value">
+                {cancelled.toLocaleString()}
+              </h3>
+            </div>
+          </div>
+        </div>
+        <div className="col">
+          <div className="card summary-card h-100">
+            <div className="summary-card-header">
+              <h6 className="summary-card-title">Avg Delivery Time</h6>
+            </div>
+            <div className="summary-card-body">
+              <h3 className="summary-card-value">{averageDeliveryTime} days</h3>
+            </div>
+          </div>
+        </div>
+        <div className="col">
+          <div className="card summary-card h-100">
+            <div className="summary-card-header">
+              <h6 className="summary-card-title">Success Rate</h6>
+            </div>
+            <div className="summary-card-body">
+              <h3 className="summary-card-value">{deliverySuccess}%</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card mb-4">
+        <div className="card-header">
+          <h5 className="card-title">Delivery Statistics</h5>
+          <p className="card-text text-muted">Overview of delivery activity</p>
+        </div>
+        <div className="card-body">
+          <Bar ref={chartRef} data={chartData} options={chartOptions} />
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <h5 className="card-title">Top Delivery Regions</h5>
+          <p className="card-text text-muted">Performance by region</p>
+        </div>
+        <div className="card-body">
+          <div className="table-responsive">
+            <table className="table table-striped">
+              <thead>
+                <tr style={{ backgroundColor: "#f8f9fa" }}>
+                  <th
+                    style={{
+                      fontSize: "14px",
+                      color: "#6c757d",
+                      fontWeight: "normal",
+                    }}
+                  >
+                    Region
+                  </th>
+                  <th
+                    style={{
+                      fontSize: "14px",
+                      color: "#6c757d",
+                      fontWeight: "normal",
+                      textAlign: "right",
+                    }}
+                  >
+                    Deliveries
+                  </th>
+                  <th
+                    style={{
+                      fontSize: "14px",
+                      color: "#6c757d",
+                      fontWeight: "normal",
+                      textAlign: "right",
+                    }}
+                  >
+                    Avg Time (days)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {deliveryRegions.map((region, index) => (
+                  <tr
+                    key={index}
+                    className="bg-white shadow-sm rounded-lg mb-2"
+                    style={{ border: "1px solid #e9ecef" }}
+                  >
+                    <td
+                      style={{
+                        fontSize: "14px",
+                        color: "#212529",
+                        padding: "12px",
+                      }}
+                    >
+                      {region.region}
+                    </td>
+                    <td
+                      style={{
+                        fontSize: "14px",
+                        color: "#212529",
+                        padding: "12px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {region.deliveries.toLocaleString()}
+                    </td>
+                    <td
+                      style={{
+                        fontSize: "14px",
+                        color: "#212529",
+                        padding: "12px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {(Number(region.avgTime) || 0).toFixed(1)}{" "}
+                      {/* Convert to number */}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default DeliveryReport;

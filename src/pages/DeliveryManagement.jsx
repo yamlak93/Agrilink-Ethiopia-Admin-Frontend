@@ -20,9 +20,7 @@ const DeliveryManagement = () => {
   const [modalMessage, setModalMessage] = useState("");
   const [modalType, setModalType] = useState("success");
   const [editFormData, setEditFormData] = useState({
-    productName: "",
-    quantity: "",
-    unit: "",
+    productList: [],
     farmerName: "",
     buyerName: "",
     status: "",
@@ -32,6 +30,13 @@ const DeliveryManagement = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // SAFE DATE FORMATTER
+  const formatDate = (dateInput) => {
+    if (!dateInput) return null;
+    const date = new Date(dateInput);
+    return isNaN(date.getTime()) ? null : date.toISOString().split("T")[0];
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -52,35 +57,23 @@ const DeliveryManagement = () => {
         const response = await apiClient.get("/deliveries/allDeliveries", {
           headers,
         });
-        console.log("Fetched all deliveries:", response.data.deliveries);
-        const fetchedDeliveries = response.data.deliveries.map((delivery) => ({
-          id: delivery.id,
-          orderId: delivery.orderId || "N/A",
-          productName: delivery.productName || "Unknown Product",
-          quantity: delivery.quantity || 0,
-          unit: delivery.unit || "",
-          farmerName: delivery.farmerName || "Unknown Farmer",
-          buyerName: delivery.buyerName || "Unknown Buyer",
-          requestDate: delivery.requestDate
-            ? delivery.requestDate.split("T")[0]
-            : new Date().toISOString().split("T")[0],
-          deliveryDate: delivery.deliveryDate
-            ? delivery.deliveryDate.split("T")[0]
-            : null,
-          status: delivery.status || "pending",
-          deliveryAddress: delivery.deliveryAddress || "Not specified",
-          farmName: delivery.farmName || "Not specified",
-          farmLocation: delivery.farmLocation || "Not specified",
+        const fetchedDeliveries = response.data.deliveries.map((d) => ({
+          id: d.id,
+          orderId: d.orderId || "N/A",
+          productDisplay: d.productDisplay || "N/A",
+          productList: d.productList || [],
+          farmerName: d.farmerName || "Unknown Farmer",
+          buyerName: d.buyerName || "Unknown Buyer",
+          requestDate:
+            formatDate(d.orderDate) || new Date().toISOString().split("T")[0],
+          deliveryDate: formatDate(d.deliveryDate),
+          status: d.status || "pending",
+          deliveryAddress: d.deliveryAddress || "Not specified",
         }));
 
-        if (isMounted) {
-          setDeliveries(fetchedDeliveries);
-        }
+        if (isMounted) setDeliveries(fetchedDeliveries);
       } catch (err) {
-        console.error(
-          "Failed to fetch all deliveries:",
-          err.response?.data || err
-        );
+        console.error("Failed to fetch deliveries:", err);
         if (err.response?.status === 401) {
           setError("Authentication failed. Please log in again.");
           window.location.href = "/admin/login";
@@ -92,37 +85,30 @@ const DeliveryManagement = () => {
           );
         }
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     };
-    fetchDeliveries().catch((err) => {
-      if (isMounted) {
-        console.error("Uncaught error in fetch:", err);
-      }
-    });
+    fetchDeliveries();
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const filteredDeliveries = deliveries.filter((delivery) => {
+  const filteredDeliveries = deliveries.filter((d) => {
     const matchesSearch =
-      delivery.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      delivery.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      delivery.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      delivery.farmerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      delivery.buyerName.toLowerCase().includes(searchQuery.toLowerCase());
+      d.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.productDisplay.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.farmerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.buyerName.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus =
       statusFilter === "All" ||
-      delivery.status.toLowerCase() === statusFilter.toLowerCase();
-
+      d.status.toLowerCase() === statusFilter.toLowerCase();
     const startDate = dateFilter.startDate
       ? new Date(dateFilter.startDate)
       : null;
-    const requestDate = new Date(delivery.requestDate);
+    const requestDate = new Date(d.requestDate);
     const matchesDate =
       !startDate || requestDate.toDateString() === startDate.toDateString();
 
@@ -143,29 +129,15 @@ const DeliveryManagement = () => {
       );
       setDeliveries((prev) =>
         prev.map((d) =>
-          d.id === selectedDelivery.id
-            ? {
-                ...d,
-                status: newStatus,
-                deliveryDate: new Date().toISOString().split("T")[0],
-              }
-            : d
+          d.id === selectedDelivery.id ? { ...d, status: newStatus } : d
         )
       );
-      setSelectedDelivery((prev) => ({
-        ...prev,
-        status: newStatus,
-        deliveryDate: new Date().toISOString().split("T")[0],
-      }));
+      setSelectedDelivery((prev) => ({ ...prev, status: newStatus }));
       setModalMessage(
         `Delivery ${selectedDelivery.id} status updated to ${newStatus}.`
       );
       setModalType("success");
     } catch (err) {
-      console.error(
-        "Failed to update status:",
-        err.response?.data || err.message
-      );
       setModalMessage("Failed to update delivery status.");
       setModalType("danger");
     } finally {
@@ -183,9 +155,7 @@ const DeliveryManagement = () => {
           deliveryDate: editFormData.deliveryDate,
           deliveryAddress: editFormData.deliveryAddress,
         },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       setDeliveries((prev) =>
         prev.map((d) =>
@@ -199,20 +169,11 @@ const DeliveryManagement = () => {
             : d
         )
       );
-      setSelectedDelivery((prev) => ({
-        ...prev,
-        status: editFormData.status,
-        deliveryDate: editFormData.deliveryDate,
-        deliveryAddress: editFormData.deliveryAddress,
-      }));
+      setSelectedDelivery((prev) => ({ ...prev, ...editFormData }));
       setShowEditModal(false);
       setModalMessage(`Delivery ${selectedDelivery.id} updated successfully.`);
       setModalType("success");
     } catch (err) {
-      console.error(
-        "Failed to update delivery:",
-        err.response?.data || err.message
-      );
       setModalMessage("Failed to update delivery.");
       setModalType("danger");
     } finally {
@@ -282,7 +243,7 @@ const DeliveryManagement = () => {
                     Manage delivery requests and statuses
                   </p>
                 </div>
-                <div className="d-flex align-items-center gap-4">
+                <div className="d-flex align-items-center flex-wrap flex-lg-nowrap gap-3">
                   <div className="search-container">
                     <FaSearch
                       size={16}
@@ -340,110 +301,35 @@ const DeliveryManagement = () => {
                 </div>
               </div>
             </div>
+
             <div className="card-body">
               <div className="table-responsive">
                 <table className="table table-striped">
-                  <thead>
-                    <tr style={{ backgroundColor: "#f8f9fa" }}>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        #
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Delivery ID
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Order ID
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Product
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Quantity
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Farmer
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Buyer
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Request Date
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Delivery Date
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Status
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Actions
-                      </th>
+                  <thead style={{ backgroundColor: "#f8f9fa" }}>
+                    <tr>
+                      {[
+                        "#",
+                        "Delivery ID",
+                        "Order ID",
+                        "Product",
+                        "Farmer",
+                        "Buyer",
+                        "Request Date",
+                        "Delivery Date",
+                        "Status",
+                        "Actions",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          style={{
+                            fontSize: "14px",
+                            color: "#6c757d",
+                            fontWeight: "normal",
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -453,47 +339,44 @@ const DeliveryManagement = () => {
                           (a, b) =>
                             new Date(b.requestDate) - new Date(a.requestDate)
                         )
-                        .map((delivery, index) => (
-                          <tr key={delivery.id}>
+                        .map((d, i) => (
+                          <tr key={d.id}>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
-                              {index + 1}
+                              {i + 1}
                             </td>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
-                              {delivery.id}
+                              {d.id}
                             </td>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
-                              {delivery.orderId}
+                              {d.orderId}
                             </td>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
                               <div style={{ fontWeight: "bold" }}>
-                                {delivery.productName}
+                                {d.productDisplay}
                               </div>
                             </td>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
-                              {delivery.quantity} {delivery.unit}
+                              {d.farmerName}
                             </td>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
-                              {delivery.farmerName}
+                              {d.buyerName}
                             </td>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
-                              {delivery.buyerName}
+                              {d.requestDate}
                             </td>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
-                              {delivery.requestDate}
-                            </td>
-                            <td style={{ fontSize: "14px", color: "#212529" }}>
-                              {delivery.deliveryDate || "Not set"}
+                              {d.deliveryDate || "Not set"}
                             </td>
                             <td>
                               <span
                                 className={`badge ${
-                                  delivery.status === "delivered"
+                                  d.status === "delivered"
                                     ? "bg-success"
-                                    : delivery.status === "in transit"
+                                    : d.status === "in transit"
                                     ? "bg-primary"
-                                    : delivery.status === "pending"
+                                    : d.status === "pending"
                                     ? "bg-warning"
-                                    : delivery.status === "accepted"
+                                    : d.status === "accepted"
                                     ? "bg-info"
                                     : "bg-danger"
                                 }`}
@@ -504,10 +387,10 @@ const DeliveryManagement = () => {
                                   borderRadius: "12px",
                                 }}
                               >
-                                {delivery.status}
+                                {d.status}
                               </span>
                             </td>
-                            <td style={{ fontSize: "14px", color: "#212529" }}>
+                            <td>
                               <button
                                 className="btn btn-sm btn-light"
                                 style={{
@@ -516,11 +399,11 @@ const DeliveryManagement = () => {
                                   borderRadius: "4px",
                                 }}
                                 onClick={() => {
-                                  setSelectedDelivery(delivery);
+                                  setSelectedDelivery(d);
                                   setShowDetailsModal(true);
                                 }}
                               >
-                                ⋮
+                                ...
                               </button>
                             </td>
                           </tr>
@@ -542,16 +425,14 @@ const DeliveryManagement = () => {
             </div>
           </div>
 
-          {/* Show detail modal */}
+          {/* DETAILS MODAL */}
           {showDetailsModal && (
             <DeliveryDetailModal
               delivery={selectedDelivery}
               onClose={() => setShowDetailsModal(false)}
               onEdit={() => {
                 setEditFormData({
-                  productName: selectedDelivery.productName,
-                  quantity: selectedDelivery.quantity,
-                  unit: selectedDelivery.unit,
+                  productList: selectedDelivery.productList,
                   farmerName: selectedDelivery.farmerName,
                   buyerName: selectedDelivery.buyerName,
                   status: selectedDelivery.status,
@@ -566,16 +447,15 @@ const DeliveryManagement = () => {
             />
           )}
 
-          {/* Show edit modal */}
+          {/* EDIT MODAL – FULL PRODUCT LIST */}
           {showEditModal && (
             <div
               className="modal show d-block"
-              tabIndex="-1"
               style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
             >
               <div
                 className="modal-dialog modal-dialog-centered"
-                style={{ maxWidth: "400px" }}
+                style={{ maxWidth: "500px" }}
               >
                 <div
                   className="modal-content"
@@ -597,7 +477,7 @@ const DeliveryManagement = () => {
                         fontWeight: "600",
                       }}
                     >
-                      Edit Delivery: {selectedDelivery.productName}
+                      Edit Delivery: {selectedDelivery.orderId}
                     </h5>
                     <button
                       type="button"
@@ -629,104 +509,48 @@ const DeliveryManagement = () => {
                         <input
                           type="text"
                           className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                            backgroundColor: "#e9ecef",
-                          }}
                           value={editFormData.orderId}
                           readOnly
+                          style={{ backgroundColor: "#e9ecef" }}
                         />
                       </div>
+
+                      {/* FULL PRODUCT LIST */}
+                      {editFormData.productList?.length > 0 && (
+                        <div className="mb-3">
+                          <label
+                            className="form-label"
+                            style={{ fontSize: "14px", color: "#6c757d" }}
+                          >
+                            Products
+                          </label>
+                          <ul
+                            className="list-unstyled mb-0"
+                            style={{ fontSize: "14px" }}
+                          >
+                            {editFormData.productList.map((p, i) => (
+                              <li key={i}>
+                                <strong>{p.name}</strong> — {p.quantity}{" "}
+                                {p.unit} — ETB {p.price} = ETB {p.total}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
                       <div className="mb-3">
                         <label
                           className="form-label"
                           style={{ fontSize: "14px", color: "#6c757d" }}
                         >
-                          Product Name
+                          Farmer
                         </label>
                         <input
                           type="text"
                           className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                            backgroundColor: "#e9ecef",
-                          }}
-                          value={editFormData.productName}
-                          readOnly
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <label
-                          className="form-label"
-                          style={{ fontSize: "14px", color: "#6c757d" }}
-                        >
-                          Quantity
-                        </label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                            backgroundColor: "#e9ecef",
-                          }}
-                          value={editFormData.quantity}
-                          readOnly
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <label
-                          className="form-label"
-                          style={{ fontSize: "14px", color: "#6c757d" }}
-                        >
-                          Unit
-                        </label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                            backgroundColor: "#e9ecef",
-                          }}
-                          value={editFormData.unit}
-                          readOnly
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <label
-                          className="form-label"
-                          style={{ fontSize: "14px", color: "#6c757d" }}
-                        >
-                          Farmer Name
-                        </label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                            backgroundColor: "#e9ecef",
-                          }}
                           value={editFormData.farmerName}
                           readOnly
+                          style={{ backgroundColor: "#e9ecef" }}
                         />
                       </div>
                       <div className="mb-3">
@@ -734,21 +558,14 @@ const DeliveryManagement = () => {
                           className="form-label"
                           style={{ fontSize: "14px", color: "#6c757d" }}
                         >
-                          Buyer Name
+                          Buyer
                         </label>
                         <input
                           type="text"
                           className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                            backgroundColor: "#e9ecef",
-                          }}
                           value={editFormData.buyerName}
                           readOnly
+                          style={{ backgroundColor: "#e9ecef" }}
                         />
                       </div>
                       <div className="mb-3">
@@ -761,13 +578,6 @@ const DeliveryManagement = () => {
                         <input
                           type="date"
                           className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                          }}
                           value={editFormData.deliveryDate}
                           onChange={(e) =>
                             setEditFormData({
@@ -787,13 +597,6 @@ const DeliveryManagement = () => {
                         <input
                           type="text"
                           className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                          }}
                           value={editFormData.deliveryAddress}
                           onChange={(e) =>
                             setEditFormData({
@@ -812,13 +615,6 @@ const DeliveryManagement = () => {
                         </label>
                         <select
                           className="form-select"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                          }}
                           value={editFormData.status}
                           onChange={(e) =>
                             setEditFormData({
@@ -847,22 +643,12 @@ const DeliveryManagement = () => {
                   >
                     <button
                       className="btn btn-success"
-                      style={{
-                        fontSize: "14px",
-                        padding: "6px 12px",
-                        borderRadius: "4px",
-                      }}
                       onClick={handleEditConfirm}
                     >
                       Confirm
                     </button>
                     <button
                       className="btn btn-secondary"
-                      style={{
-                        fontSize: "14px",
-                        padding: "6px 12px",
-                        borderRadius: "4px",
-                      }}
                       onClick={() => setShowEditModal(false)}
                     >
                       Cancel
@@ -873,7 +659,6 @@ const DeliveryManagement = () => {
             </div>
           )}
 
-          {/* Stylish Confirmation Modal */}
           <StylishModal
             isVisible={showStylishModal}
             message={modalMessage}

@@ -220,7 +220,7 @@ const LoginPage = () => {
         >
           Forgot password?{" "}
           <Link
-            to="/forgot-password"
+            to="/admin/forgot-password"
             style={{
               color: "#28a745",
               textDecoration: "none",

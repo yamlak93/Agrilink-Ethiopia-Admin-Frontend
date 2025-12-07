@@ -1,34 +1,65 @@
+// src/components/Navbar.jsx
 import React, { useState, useEffect } from "react";
 import logoGreen from "../assets/logoGreen.png";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSignOutAlt, faBell } from "@fortawesome/free-solid-svg-icons";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
 import NotificationModal from "./NotificationModal";
+import apiClient from "../api/api";
 
 const Navbar = () => {
-  const [unreadNotifications] = useState(3);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [userName, setUserName] = useState(""); // State to hold the user's name
+  const [userName, setUserName] = useState("");
+  const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
 
-  // Effect to load user name from localStorage when component mounts
+  // Load user from localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       const user = JSON.parse(storedUser);
-      setUserName(user.name || "User"); // Use 'name' from the user object
+      setUserName(user.name || "User");
+    } else {
+      navigate("/admin/login");
     }
+  }, [navigate]);
+
+  // Fetch notifications from DB via API
+  const fetchNotifications = async () => {
+    try {
+      const response = await apiClient.get("/notifications/all");
+      const fetchedNotifications = response.data;
+      setNotifications(fetchedNotifications);
+      setUnreadNotifications(
+        fetchedNotifications.filter((n) => !n.isRead).length || 0
+      );
+      console.log(
+        "✅ Notifications fetched from DB:",
+        fetchedNotifications.length
+      );
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      setNotifications([]);
+      setUnreadNotifications(0);
+    }
+  };
+
+  // Poll every 30s
+  useEffect(() => {
+    fetchNotifications(); // Initial fetch
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleShowModal = () => setIsModalOpen(true);
   const handleCloseModal = () => setIsModalOpen(false);
 
   const handleSignOut = () => {
-    // Destroy JWT and user data by removing from localStorage
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    navigate("/admin/login"); // Redirect to login page
+    navigate("/admin/login");
   };
 
   return (
@@ -44,7 +75,6 @@ const Navbar = () => {
         }}
       >
         <div className="container-fluid d-flex justify-content-between align-items-center">
-          {/* Left: Logo */}
           <div className="logo d-flex align-items-center">
             <img src={logoGreen} width={36} alt="Logo" className="me-2" />
             <span className="fw-bold text-success d-none d-lg-inline">
@@ -52,7 +82,6 @@ const Navbar = () => {
             </span>
           </div>
 
-          {/* Middle: Welcome text */}
           <div className="flex-grow-1 d-flex justify-content-center">
             <span
               className="welcome-text d-none d-md-inline"
@@ -67,9 +96,7 @@ const Navbar = () => {
             </span>
           </div>
 
-          {/* Right: Icons and role */}
           <div className="rightside d-flex align-items-center">
-            {/* Role badge */}
             <span
               className="bg-success text-white d-none d-sm-inline"
               style={{
@@ -85,7 +112,6 @@ const Navbar = () => {
               Admin
             </span>
 
-            {/* Notification bell */}
             <div
               className="position-relative me-2"
               onClick={handleShowModal}
@@ -106,7 +132,6 @@ const Navbar = () => {
               )}
             </div>
 
-            {/* Logout */}
             <div onClick={handleSignOut} style={{ cursor: "pointer" }}>
               <FontAwesomeIcon icon={faSignOutAlt} style={{ color: "red" }} />
             </div>
@@ -114,8 +139,14 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* Notification Modal */}
-      <NotificationModal show={isModalOpen} handleClose={handleCloseModal} />
+      <NotificationModal
+        show={isModalOpen}
+        handleClose={handleCloseModal}
+        notifications={notifications}
+        setNotifications={setNotifications}
+        setUnreadNotifications={setUnreadNotifications}
+        fetchNotifications={fetchNotifications} // Pass to refresh after mark read
+      />
     </>
   );
 };

@@ -140,6 +140,7 @@ const ProductDetailModal = ({
             <p>
               <strong style={{ color: "#6c757d" }}>Stock:</strong>{" "}
               {product.stock}
+              {" " + product.unit}
             </p>
             <p>
               <strong style={{ color: "#6c757d" }}>Added Date:</strong>{" "}

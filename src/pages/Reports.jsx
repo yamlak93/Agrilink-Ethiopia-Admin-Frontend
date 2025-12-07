@@ -7,13 +7,10 @@ import {
   Package,
   ShoppingCart,
   Truck,
-  Download,
   Eye,
-  FileText,
   DollarSign,
 } from "lucide-react";
 import apiClient from "../api/api";
-import jsPDF from "jspdf";
 import OverviewReport from "../components/OverviewReport";
 import UserReport from "../components/UserReport";
 import ProductReport from "../components/ProductReport";
@@ -77,7 +74,6 @@ const Reports = () => {
       return;
     }
 
-    // Skip data fetching for overview report, handled by OverviewReport.jsx
     if (type === "overview") {
       setIsReportGenerated(true);
       setError(null);
@@ -98,12 +94,7 @@ const Reports = () => {
       setIsReportGenerated(true);
       console.log(`Fetched ${type} report from ${startDate} to ${endDate}`);
     } catch (err) {
-      console.error(`Error fetching ${type} report:`, {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-        stack: err.stack,
-      });
+      console.error(`Error fetching ${type} report:`, err);
       if (err.response?.status === 401) {
         setError("Session expired. Redirecting to login...");
         setTimeout(() => (window.location.href = "/admin/login"), 2000);
@@ -121,307 +112,6 @@ const Reports = () => {
       }
     } finally {
       setLoading(false);
-    }
-  };
-
-  const exportReport = (format) => {
-    if (!isAuthenticated || !isReportGenerated) {
-      setError(
-        "Cannot export report. No report generated or authentication failed."
-      );
-      return;
-    }
-
-    const reportTitle = reportTypes.find(
-      (type) => type.id === selectedReport
-    ).name;
-    const period = `${startDate} to ${endDate}`;
-    const filePeriod = `${startDate}_to_${endDate}`;
-
-    if (format === "csv") {
-      let csvContent = "data:text/csv;charset=utf-8,";
-      if (selectedReport === "overview") {
-        setError(
-          "CSV export for Overview Report must be handled within the component."
-        );
-        return;
-      } else if (selectedReport === "users") {
-        csvContent += "Metric,Value\n";
-        csvContent += `New Registrations,${reportData.users.newRegistrations}\n`;
-        csvContent += `Active Users,${reportData.users.activeUsers}\n`;
-        csvContent += "\nRegion,Users,Growth (%)\n";
-        reportData.users.topRegions.forEach((region) => {
-          csvContent += `${region.region},${region.users},${region.growth}\n`;
-        });
-      } else if (selectedReport === "products") {
-        csvContent += "Metric,Value\n";
-        csvContent += `Total Listings,${reportData.products.totalListings}\n`;
-        csvContent += `Active Listings,${reportData.products.activeListings}\n`;
-        csvContent += `Average Price,${reportData.products.avgPrice}\n`;
-        csvContent += "\nCategory,Listings,Orders,Revenue\n";
-        reportData.products.topCategories.forEach((category) => {
-          csvContent += `${category.category},${category.listings},${category.orders},${category.revenue}\n`;
-        });
-        csvContent += "\nProduct,Orders,Sales Percentage\n";
-        reportData.products.productPerformance.forEach((product) => {
-          csvContent += `${product.product},${product.orders},${product.salesPercentage}\n`;
-        });
-      } else if (selectedReport === "orders") {
-        csvContent += "Metric,Value\n";
-        csvContent += `Total Orders,${reportData.orders.totalOrders}\n`;
-        csvContent += `Completed Orders,${reportData.orders.completedOrders}\n`;
-        csvContent += `Pending Orders,${reportData.orders.pendingOrders}\n`;
-        csvContent += `Cancelled Orders,${reportData.orders.cancelledOrders}\n`;
-        csvContent += `Average Order Value,${reportData.orders.avgOrderValue}\n`;
-        csvContent += "\nMonth,Orders,Value\n";
-        reportData.orders.orderTrends.forEach((trend) => {
-          csvContent += `${trend.month},${trend.orders},${trend.value}\n`;
-        });
-        csvContent += "\nPayment Method,Orders,Total Payments\n";
-        reportData.orders.paymentMethods.forEach((method) => {
-          csvContent += `${method.method},${method.orders},${method.totalPayments}\n`;
-        });
-      } else if (selectedReport === "delivery") {
-        csvContent += "Metric,Value\n";
-        csvContent += `Pending Deliveries,${reportData.delivery.pending}\n`;
-        csvContent += `In Transit,${reportData.delivery.inTransit}\n`;
-        csvContent += `Delivered,${reportData.delivery.delivered}\n`;
-        csvContent += `Cancelled,${reportData.delivery.cancelled}\n`;
-        csvContent += `Average Delivery Time,${reportData.delivery.averageDeliveryTime}\n`;
-        csvContent += "\nRegion,Deliveries,Average Time (days)\n";
-        reportData.delivery.deliveryRegions.forEach((region) => {
-          csvContent += `${region.region},${region.deliveries},${region.avgTime}\n`;
-        });
-      } else if (selectedReport === "financial") {
-        csvContent += "Metric,Value\n";
-        csvContent += `Total Revenue,${reportData.financial.totalRevenue}\n`;
-        csvContent += `Platform Fees,${reportData.financial.platformFees}\n`;
-        csvContent += `Farmer Earnings,${reportData.financial.farmerEarnings}\n`;
-        csvContent += `Average Transaction Fee,${reportData.financial.avgTransactionFee}\n`;
-        csvContent += `Revenue Growth,${reportData.financial.revenueGrowth}%\n`;
-        csvContent += "\nMonth,Revenue,Fees\n";
-        reportData.financial.monthlyRevenue.forEach((month) => {
-          csvContent += `${month.month},${month.revenue},${month.fees}\n`;
-        });
-        csvContent += "\nFarmer,Earnings,Orders\n";
-        reportData.financial.topEarningFarmers.forEach((farmer) => {
-          csvContent += `${farmer.name},${farmer.earnings},${farmer.orders}\n`;
-        });
-      }
-
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute(
-        "download",
-        `${selectedReport}_report_${filePeriod}.csv`
-      );
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else if (format === "pdf") {
-      const doc = new jsPDF();
-      let y = 20;
-
-      doc.setFontSize(16);
-      doc.text(`${reportTitle} - ${period}`, 20, y);
-      y += 10;
-
-      doc.setFontSize(12);
-      if (selectedReport === "overview") {
-        setError(
-          "PDF export for Overview Report must be handled within the component."
-        );
-        return;
-      } else if (selectedReport === "users") {
-        doc.text("User Metrics", 20, y);
-        y += 10;
-        doc.text(
-          `New Registrations: ${reportData.users.newRegistrations.toLocaleString()}`,
-          20,
-          y
-        );
-        y += 10;
-        doc.text(
-          `Active Users: ${reportData.users.activeUsers.toLocaleString()}`,
-          20,
-          y
-        );
-        y += 20;
-        doc.text("Top Regions", 20, y);
-        y += 10;
-        reportData.users.topRegions.forEach((region) => {
-          doc.text(
-            `${region.region}, ${region.users}, ${region.growth}%`,
-            20,
-            y
-          );
-          y += 10;
-        });
-      } else if (selectedReport === "products") {
-        doc.text("Product Metrics", 20, y);
-        y += 10;
-        doc.text(
-          `Total Listings: ${reportData.products.totalListings.toLocaleString()}`,
-          20,
-          y
-        );
-        y += 10;
-        doc.text(
-          `Active Listings: ${reportData.products.activeListings.toLocaleString()}`,
-          20,
-          y
-        );
-        y += 10;
-        doc.text(`Average Price: ETB ${reportData.products.avgPrice}`, 20, y);
-        y += 20;
-        doc.text("Top Categories", 20, y);
-        y += 10;
-        reportData.products.topCategories.forEach((category) => {
-          doc.text(
-            `${category.category}, ${category.listings}, ${category.orders}, ${category.revenue}`,
-            20,
-            y
-          );
-          y += 10;
-        });
-        y += 10;
-        doc.text("Product Performance", 20, y);
-        y += 10;
-        reportData.products.productPerformance.forEach((product) => {
-          doc.text(
-            `${product.product}, ${product.orders}, ${product.salesPercentage}%`,
-            20,
-            y
-          );
-          y += 10;
-        });
-      } else if (selectedReport === "orders") {
-        doc.text("Order Metrics", 20, y);
-        y += 10;
-        doc.text(
-          `Total Orders: ${reportData.orders.totalOrders.toLocaleString()}`,
-          20,
-          y
-        );
-        y += 10;
-        doc.text(
-          `Completed Orders: ${reportData.orders.completedOrders.toLocaleString()}`,
-          20,
-          y
-        );
-        y += 10;
-        doc.text(`Pending Orders: ${reportData.orders.pendingOrders}`, 20, y);
-        y += 10;
-        doc.text(
-          `Cancelled Orders: ${reportData.orders.cancelledOrders}`,
-          20,
-          y
-        );
-        y += 10;
-        doc.text(
-          `Average Order Value: ETB ${reportData.orders.avgOrderValue}`,
-          20,
-          y
-        );
-        y += 20;
-        doc.text("Order Trends", 20, y);
-        y += 10;
-        reportData.orders.orderTrends.forEach((trend) => {
-          doc.text(`${trend.month}, ${trend.orders}, ${trend.value}`, 20, y);
-          y += 10;
-        });
-        y += 10;
-        doc.text("Payment Methods", 20, y);
-        y += 10;
-        reportData.orders.paymentMethods.forEach((method) => {
-          doc.text(
-            `${method.method}, ${method.orders}, ${method.totalPayments}`,
-            20,
-            y
-          );
-          y += 10;
-        });
-      } else if (selectedReport === "delivery") {
-        doc.text("Delivery Metrics", 20, y);
-        y += 10;
-        doc.text(`Pending Deliveries: ${reportData.delivery.pending}`, 20, y);
-        y += 10;
-        doc.text(`In Transit: ${reportData.delivery.inTransit}`, 20, y);
-        y += 10;
-        doc.text(`Delivered: ${reportData.delivery.delivered}`, 20, y);
-        y += 10;
-        doc.text(`Cancelled: ${reportData.delivery.cancelled}`, 20, y);
-        y += 10;
-        doc.text(
-          `Average Delivery Time: ${reportData.delivery.averageDeliveryTime} days`,
-          20,
-          y
-        );
-        y += 20;
-        doc.text("Delivery Regions", 20, y);
-        y += 10;
-        reportData.delivery.deliveryRegions.forEach((region) => {
-          doc.text(
-            `${region.region}, ${region.deliveries}, ${region.avgTime} days`,
-            20,
-            y
-          );
-          y += 10;
-        });
-      } else if (selectedReport === "financial") {
-        doc.text("Financial Metrics", 20, y);
-        y += 10;
-        doc.text(
-          `Total Revenue: ETB ${reportData.financial.totalRevenue.toLocaleString()}`,
-          20,
-          y
-        );
-        y += 10;
-        doc.text(
-          `Platform Fees: ETB ${reportData.financial.platformFees.toLocaleString()}`,
-          20,
-          y
-        );
-        y += 10;
-        doc.text(
-          `Farmer Earnings: ETB ${reportData.financial.farmerEarnings.toLocaleString()}`,
-          20,
-          y
-        );
-        y += 10;
-        doc.text(
-          `Average Transaction Fee: ETB ${reportData.financial.avgTransactionFee}`,
-          20,
-          y
-        );
-        y += 10;
-        doc.text(
-          `Revenue Growth: ${reportData.financial.revenueGrowth}%`,
-          20,
-          y
-        );
-        y += 20;
-        doc.text("Monthly Revenue", 20, y);
-        y += 10;
-        reportData.financial.monthlyRevenue.forEach((month) => {
-          doc.text(`${month.month}, ${month.revenue}, ${month.fees}`, 20, y);
-          y += 10;
-        });
-        y += 10;
-        doc.text("Top Earning Farmers", 20, y);
-        y += 10;
-        reportData.financial.topEarningFarmers.forEach((farmer) => {
-          doc.text(
-            `${farmer.name}, ${farmer.earnings}, ${farmer.orders}`,
-            20,
-            y
-          );
-          y += 10;
-        });
-      }
-
-      doc.save(`${selectedReport}_report_${filePeriod}.pdf`);
     }
   };
 
@@ -478,6 +168,7 @@ const Reports = () => {
             </div>
           </div>
 
+          {/* === DATE & REPORT SELECTOR === */}
           <div className="card mb-4">
             <div className="card-body">
               <div className="row">
@@ -528,31 +219,12 @@ const Reports = () => {
                     <Eye size={16} className="me-2" />
                     Generate Report
                   </button>
-                  {isReportGenerated && isAuthenticated && (
-                    <>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => exportReport("pdf")}
-                        style={{ fontSize: "14px", padding: "6px 12px" }}
-                      >
-                        <Download size={16} className="me-2" />
-                        Export PDF
-                      </button>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => exportReport("csv")}
-                        style={{ fontSize: "14px", padding: "6px 12px" }}
-                      >
-                        <FileText size={16} className="me-2" />
-                        Export CSV
-                      </button>
-                    </>
-                  )}
                 </div>
               </div>
             </div>
           </div>
 
+          {/* === ERROR ALERT === */}
           {error && isAuthenticated && (
             <div
               className="alert alert-danger d-flex align-items-center justify-content-between"
@@ -568,29 +240,68 @@ const Reports = () => {
             </div>
           )}
 
+          {/* === REPORT CONTENT === */}
           <div className="card">
             <div className="card-body">
-              {isReportGenerated && !error && isAuthenticated && (
+              {isReportGenerated && !error && isAuthenticated ? (
                 <>
                   {selectedReport === "overview" && (
                     <OverviewReport startDate={startDate} endDate={endDate} />
                   )}
                   {selectedReport === "users" && reportData && (
-                    <UserReport users={reportData.users} />
+                    <UserReport
+                      users={reportData.users}
+                      startDate={startDate}
+                      endDate={endDate}
+                    />
                   )}
                   {selectedReport === "products" && reportData && (
-                    <ProductReport products={reportData.products} />
+                    <ProductReport
+                      products={reportData.products}
+                      startDate={startDate}
+                      endDate={endDate}
+                    />
                   )}
                   {selectedReport === "orders" && reportData && (
-                    <OrderReport orders={reportData.orders} />
+                    <OrderReport
+                      orders={reportData.orders}
+                      startDate={startDate}
+                      endDate={endDate}
+                    />
                   )}
-                  {selectedReport === "delivery" && reportData && (
-                    <DeliveryReport delivery={reportData.delivery} />
+                  {selectedReport === "delivery" && reportData.delivery && (
+                    <DeliveryReport
+                      delivery={reportData.delivery}
+                      startDate={startDate}
+                      endDate={endDate}
+                    />
                   )}
                   {selectedReport === "financial" && reportData && (
-                    <FinancialReport financial={reportData.financial} />
+                    <FinancialReport
+                      financial={reportData.financial}
+                      startDate={startDate}
+                      endDate={endDate}
+                    />
                   )}
                 </>
+              ) : (
+                /* === EMPTY STATE – NO REPORT SELECTED === */
+                <div className="text-center py-5">
+                  <BarChart3 size={64} className="text-muted mb-3" />
+                  <h4 className="text-muted fw-normal">No Report Selected</h4>
+                  <p className="text-muted small">
+                    Select a report type and date range above, then click{" "}
+                    <strong>Generate Report</strong> to view insights.
+                  </p>
+                  <button
+                    className="btn btn-outline-primary btn-sm mt-2"
+                    onClick={() => generateReport(selectedReport)}
+                    disabled={!startDate || !endDate}
+                  >
+                    <Eye size={16} className="me-1" />
+                    Generate Now
+                  </button>
+                </div>
               )}
             </div>
           </div>

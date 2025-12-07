@@ -1,192 +1,609 @@
-import { ShoppingCart, DollarSign, Clock, CreditCard } from "lucide-react";
+import React, { useRef } from "react";
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import {
+  ShoppingCart,
+  DollarSign,
+  Clock,
+  CreditCard,
+  Download,
+  FileText,
+} from "lucide-react";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
-const OrderReport = ({ orders }) => (
-  <div className="mb-4">
-    <div className="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4 mb-4">
-      <div className="col">
-        <div className="card summary-card h-100">
-          <div className="summary-card-header">
-            <h6 className="summary-card-title">Total Orders</h6>
-            <ShoppingCart size={24} className="summary-card-icon" />
-          </div>
-          <div className="summary-card-body">
-            <h3 className="summary-card-value">
-              {orders.totalOrders.toLocaleString()}
-            </h3>
-            <p className="summary-card-subtext text-muted">All time orders</p>
-          </div>
-        </div>
-      </div>
-      <div className="col">
-        <div className="card summary-card h-100">
-          <div className="summary-card-header">
-            <h6 className="summary-card-title">Completed Orders</h6>
-            <ShoppingCart size={24} className="summary-card-icon" />
-          </div>
-          <div className="summary-card-body">
-            <h3 className="summary-card-value">
-              {orders.completedOrders.toLocaleString()}
-            </h3>
-            <p className="summary-card-subtext text-muted">
-              {((orders.completedOrders / orders.totalOrders) * 100).toFixed(1)}
-              % completion rate
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="col">
-        <div className="card summary-card h-100">
-          <div className="summary-card-header">
-            <h6 className="summary-card-title">Avg. Order Value</h6>
-            <DollarSign size={24} className="summary-card-icon" />
-          </div>
-          <div className="summary-card-body">
-            <h3 className="summary-card-value">ETB {orders.avgOrderValue}</h3>
-            <p className="summary-card-subtext text-muted">Per order</p>
-          </div>
-        </div>
-      </div>
-      <div className="col">
-        <div className="card summary-card h-100">
-          <div className="summary-card-header">
-            <h6 className="summary-card-title">Pending Orders</h6>
-            <Clock size={24} className="summary-card-icon" />
-          </div>
-          <div className="summary-card-body">
-            <h3 className="summary-card-value">{orders.pendingOrders}</h3>
-            <p className="summary-card-subtext text-muted">
-              Awaiting processing
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
-    <div className="row row-cols-1 row-cols-lg-2 g-4">
-      <div className="col">
-        <div className="card">
-          <div className="card-header">
-            <h5 className="card-title">Monthly Order Trends</h5>
-            <p className="card-text text-muted">
-              Order volume and value over time
-            </p>
+const OrderReport = ({ orders, startDate, endDate }) => {
+  // Fallback values if orders is undefined
+  const safeOrders = orders || {
+    totalOrders: 0,
+    completedOrders: 0,
+    pendingOrders: 0,
+    cancelledOrders: 0,
+    avgOrderValue: 0,
+    orderTrends: [],
+    paymentMethods: [],
+  };
+
+  const chartRef = useRef(null); // Initialize chartRef with useRef
+
+  // Chart data for Order Statistics
+  const chartData = {
+    labels: ["Total Orders", "Completed Orders"],
+    datasets: [
+      {
+        label: "Orders",
+        data: [safeOrders.totalOrders || 0, safeOrders.completedOrders || 0],
+        backgroundColor: [
+          "rgba(75, 192, 192, 0.6)",
+          "rgba(153, 102, 255, 0.6)",
+        ],
+        borderColor: ["rgba(75, 192, 192, 1)", "rgba(153, 102, 255, 1)"],
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { position: "top" },
+      title: {
+        display: true,
+        text: "Order Statistics",
+      },
+    },
+    scales: { y: { beginAtZero: true } },
+  };
+
+  // Function to download PDF
+  const downloadPDF = () => {
+    if (
+      !safeOrders.totalOrders &&
+      !safeOrders.completedOrders &&
+      !safeOrders.pendingOrders &&
+      !safeOrders.cancelledOrders &&
+      !safeOrders.avgOrderValue &&
+      safeOrders.orderTrends.length === 0 &&
+      safeOrders.paymentMethods.length === 0
+    ) {
+      alert("Cannot export report. No data available.");
+      return;
+    }
+
+    const reportTitle = "AGRILINK ETHIOPIA";
+    const reportType = "Order Analytics Report";
+    const period = `${startDate} to ${endDate}`; // Use passed startDate and endDate
+    const filePeriod = `${new Date().toISOString().split("T")[0]}`;
+    const pageHeight = 297; // A4 height in mm
+    const bottomMargin = 20;
+    const maxY = pageHeight - bottomMargin;
+
+    const doc = new jsPDF();
+    let y = 20;
+
+    // Helper function to add new page if content overflows
+    const checkPageOverflow = () => {
+      if (y > maxY) {
+        doc.addPage();
+        y = 20;
+        addHeaderFooter();
+      }
+    };
+
+    // Helper function to add header and footer
+    const addHeaderFooter = () => {
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `Page ${doc.internal.getNumberOfPages()}`,
+        doc.internal.pageSize.width - 30,
+        pageHeight - 10,
+        { align: "right" }
+      );
+      doc.text("Generated by AgriLink Ethiopia", 20, pageHeight - 10);
+    };
+
+    // Initial header and footer
+    addHeaderFooter();
+
+    // Title: AGRILINK ETHIOPIA
+    doc.setFontSize(28);
+    doc.setTextColor(0, 128, 0); // Green
+    doc.setFont("helvetica", "bold");
+    doc.text(reportTitle, doc.internal.pageSize.width / 2, y, {
+      align: "center",
+    });
+    y += 15;
+
+    // Report Type
+    doc.setFontSize(18);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text(reportType, doc.internal.pageSize.width / 2, y, {
+      align: "center",
+    });
+    y += 10;
+
+    // Period
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "italic");
+    doc.text(`Period: ${period}`, doc.internal.pageSize.width / 2, y, {
+      align: "center",
+    });
+    y += 15;
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "italic");
+    doc.text(
+      `Report Generated on Date: ${filePeriod}`,
+      doc.internal.pageSize.width / 2,
+      y,
+      {
+        align: "center",
+      }
+    );
+    y += 15;
+
+    // Divider
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(0, 128, 0);
+    doc.line(20, y, doc.internal.pageSize.width - 20, y);
+    y += 10;
+
+    // Order Statistics Section
+    doc.setFontSize(16);
+    doc.setTextColor(0, 128, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text("Order Statistics Overview", 20, y);
+    y += 8;
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      "Key metrics showcasing order activity on AgriLink Ethiopia",
+      20,
+      y
+    );
+    y += 8;
+    checkPageOverflow();
+
+    doc.text(
+      `Total Orders: ${safeOrders.totalOrders.toLocaleString()} (All orders placed)`,
+      20,
+      y
+    );
+    y += 8;
+    checkPageOverflow();
+    doc.text(
+      `Completed Orders: ${safeOrders.completedOrders.toLocaleString()} (Delivered orders)`,
+      20,
+      y
+    );
+    y += 8;
+    checkPageOverflow();
+    doc.text(
+      `Pending Orders: ${safeOrders.pendingOrders.toLocaleString()} (Awaiting processing)`,
+      20,
+      y
+    );
+    y += 8;
+    checkPageOverflow();
+    doc.text(
+      `Cancelled Orders: ${safeOrders.cancelledOrders.toLocaleString()} (Cancelled orders)`,
+      20,
+      y
+    );
+    y += 8;
+    checkPageOverflow();
+    doc.text(
+      `Avg. Order Value: ETB ${safeOrders.avgOrderValue.toLocaleString()} (Per order)`,
+      20,
+      y
+    );
+    y += 8;
+    checkPageOverflow();
+
+    // Add the bar chart
+    if (chartRef.current) {
+      const chartImage = chartRef.current.toBase64Image();
+      doc.addImage(chartImage, "PNG", 20, y, 170, 85);
+      y += 90;
+      checkPageOverflow();
+    } else {
+      doc.text("Order statistics chart not available in this export.", 20, y);
+      y += 10;
+      checkPageOverflow();
+    }
+
+    // Divider
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(0, 128, 0);
+    doc.line(20, y, doc.internal.pageSize.width - 20, y);
+    y += 10;
+    checkPageOverflow();
+
+    // Monthly Order Trends Section
+    doc.setFontSize(16);
+    doc.setTextColor(0, 128, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text("Monthly Order Trends", 20, y);
+    y += 8;
+    checkPageOverflow();
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    doc.text("Order volume and value over time", 20, y);
+    y += 8;
+    checkPageOverflow();
+
+    // Table header for Monthly Order Trends
+    doc.setFont("helvetica", "bold");
+    doc.text("Month", 20, y);
+    doc.text("Orders", 90, y, { align: "right" });
+    doc.text("Value (ETB)", 170, y, { align: "right" });
+    y += 6;
+    doc.setLineWidth(0.2);
+    doc.line(20, y, 190, y);
+    y += 4;
+    checkPageOverflow();
+
+    // Table rows for Monthly Order Trends
+    doc.setFont("helvetica", "normal");
+    safeOrders.orderTrends.forEach((trend) => {
+      doc.text(trend.month, 20, y);
+      doc.text((trend.orders || 0).toLocaleString(), 90, y, { align: "right" });
+      doc.text(`ETB ${(trend.value || 0).toLocaleString()}`, 170, y, {
+        align: "right",
+      });
+      y += 8;
+      checkPageOverflow();
+    });
+
+    // Divider
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(0, 128, 0);
+    doc.line(20, y, doc.internal.pageSize.width - 20, y);
+    y += 10;
+    checkPageOverflow();
+
+    // Payment Methods Section
+    doc.setFontSize(16);
+    doc.setTextColor(0, 128, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text("Payment Methods", 20, y);
+    y += 8;
+    checkPageOverflow();
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    doc.text("Payment processing via Chapa gateway", 20, y);
+    y += 8;
+    checkPageOverflow();
+
+    // Table header for Payment Methods
+    doc.setFont("helvetica", "bold");
+    doc.text("Method", 20, y);
+    doc.text("Orders", 90, y, { align: "right" });
+    doc.text("Total Payments (ETB)", 170, y, { align: "right" });
+    y += 6;
+    doc.setLineWidth(0.2);
+    doc.line(20, y, 190, y);
+    y += 4;
+    checkPageOverflow();
+
+    // Table rows for Payment Methods
+    doc.setFont("helvetica", "normal");
+    safeOrders.paymentMethods.forEach((method) => {
+      doc.text(method.method || "N/A", 20, y);
+      doc.text((method.orders || 0).toLocaleString(), 90, y, {
+        align: "right",
+      });
+      doc.text(`ETB ${(method.totalPayments || 0).toLocaleString()}`, 170, y, {
+        align: "right",
+      });
+      y += 8;
+      checkPageOverflow();
+    });
+
+    doc.save(`order_analytics_report_${filePeriod}.pdf`);
+  };
+
+  // Function to download CSV
+  const downloadCSV = () => {
+    if (
+      !safeOrders.totalOrders &&
+      !safeOrders.completedOrders &&
+      !safeOrders.pendingOrders &&
+      !safeOrders.cancelledOrders &&
+      !safeOrders.avgOrderValue &&
+      safeOrders.orderTrends.length === 0 &&
+      safeOrders.paymentMethods.length === 0
+    ) {
+      alert("Cannot export report. No data available.");
+      return;
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Metric,Value\n";
+    csvContent += `Total Orders,${safeOrders.totalOrders}\n`;
+    csvContent += `Completed Orders,${safeOrders.completedOrders}\n`;
+    csvContent += `Pending Orders,${safeOrders.pendingOrders}\n`;
+    csvContent += `Cancelled Orders,${safeOrders.cancelledOrders}\n`;
+    csvContent += `Avg. Order Value,${safeOrders.avgOrderValue}\n`;
+    if (safeOrders.orderTrends.length > 0) {
+      csvContent += "\nMonth,Orders,Value (ETB)\n";
+      safeOrders.orderTrends.forEach((trend) => {
+        csvContent += `${trend.month},${trend.orders || 0},${
+          trend.value || 0
+        }\n`;
+      });
+    }
+    if (safeOrders.paymentMethods.length > 0) {
+      csvContent += "\nPayment Method,Orders,Total Payments (ETB)\n";
+      safeOrders.paymentMethods.forEach((method) => {
+        csvContent += `${method.method || "N/A"},${method.orders || 0},${
+          method.totalPayments || 0
+        }\n`;
+      });
+    }
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `order_analytics_report_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="mb-4">
+      <div className="d-flex justify-content-end gap-2 mb-4">
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={downloadPDF}
+          style={{ fontSize: "14px", padding: "6px 12px" }}
+        >
+          <Download size={16} className="me-2" />
+          Export PDF
+        </button>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={downloadCSV}
+          style={{ fontSize: "14px", padding: "6px 12px" }}
+        >
+          <FileText size={16} className="me-2" />
+          Export CSV
+        </button>
+      </div>
+
+      <div className="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4 mb-4">
+        <div className="col">
+          <div className="card summary-card h-100">
+            <div className="summary-card-header">
+              <h6 className="summary-card-title">Total Orders</h6>
+              <ShoppingCart size={24} className="summary-card-icon" />
+            </div>
+            <div className="summary-card-body">
+              <h3 className="summary-card-value">
+                {safeOrders.totalOrders.toLocaleString()}
+              </h3>
+              <p className="summary-card-subtext text-muted">All time orders</p>
+            </div>
           </div>
-          <div className="card-body">
-            <div className="table-responsive">
-              <table className="table table-striped">
-                <thead>
-                  <tr style={{ backgroundColor: "#f8f9fa" }}>
-                    <th
-                      style={{
-                        fontSize: "14px",
-                        color: "#6c757d",
-                        fontWeight: "normal",
-                      }}
-                    >
-                      Month
-                    </th>
-                    <th
-                      style={{
-                        fontSize: "14px",
-                        color: "#6c757d",
-                        fontWeight: "normal",
-                        textAlign: "right",
-                      }}
-                    >
-                      Orders
-                    </th>
-                    <th
-                      style={{
-                        fontSize: "14px",
-                        color: "#6c757d",
-                        fontWeight: "normal",
-                        textAlign: "right",
-                      }}
-                    >
-                      Value (ETB)
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.orderTrends.map((trend, index) => (
-                    <tr
-                      key={index}
-                      className="bg-white shadow-sm rounded-lg mb-2"
-                      style={{ border: "1px solid #e9ecef" }}
-                    >
-                      <td
-                        style={{
-                          fontSize: "14px",
-                          color: "#212529",
-                          padding: "12px",
-                        }}
-                      >
-                        {trend.month}
-                      </td>
-                      <td
-                        style={{
-                          fontSize: "14px",
-                          color: "#212529",
-                          padding: "12px",
-                          textAlign: "right",
-                        }}
-                      >
-                        {trend.orders.toLocaleString()}
-                      </td>
-                      <td
-                        style={{
-                          fontSize: "14px",
-                          color: "#212529",
-                          padding: "12px",
-                          textAlign: "right",
-                        }}
-                      >
-                        {trend.value.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        </div>
+        <div className="col">
+          <div className="card summary-card h-100">
+            <div className="summary-card-header">
+              <h6 className="summary-card-title">Completed Orders</h6>
+              <ShoppingCart size={24} className="summary-card-icon" />
+            </div>
+            <div className="summary-card-body">
+              <h3 className="summary-card-value">
+                {safeOrders.completedOrders.toLocaleString()}
+              </h3>
+              <p className="summary-card-subtext text-muted">
+                {safeOrders.totalOrders > 0
+                  ? (
+                      (safeOrders.completedOrders / safeOrders.totalOrders) *
+                      100
+                    ).toFixed(1)
+                  : 0}
+                % completion rate
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="col">
+          <div className="card summary-card h-100">
+            <div className="summary-card-header">
+              <h6 className="summary-card-title">Avg. Order Value</h6>
+              <DollarSign size={24} className="summary-card-icon" />
+            </div>
+            <div className="summary-card-body">
+              <h3 className="summary-card-value">
+                ETB {safeOrders.avgOrderValue}
+              </h3>
+              <p className="summary-card-subtext text-muted">Per order</p>
+            </div>
+          </div>
+        </div>
+        <div className="col">
+          <div className="card summary-card h-100">
+            <div className="summary-card-header">
+              <h6 className="summary-card-title">Pending Orders</h6>
+              <Clock size={24} className="summary-card-icon" />
+            </div>
+            <div className="summary-card-body">
+              <h3 className="summary-card-value">{safeOrders.pendingOrders}</h3>
+              <p className="summary-card-subtext text-muted">
+                Awaiting processing
+              </p>
             </div>
           </div>
         </div>
       </div>
-      <div className="col">
-        <div className="card">
-          <div className="card-header">
-            <h5 className="card-title">Payment Methods</h5>
-            <p className="card-text text-muted">
-              Payment processing via Chapa gateway
-            </p>
-          </div>
-          <div className="card-body">
-            {orders.paymentMethods.map((method, index) => (
-              <div key={index} className="mb-3">
-                <div className="d-flex justify-content-between align-items-center">
-                  <div className="d-flex align-items-center">
-                    <CreditCard size={16} className="text-muted me-2" />
-                    <span>{method.method} Gateway</span>
-                  </div>
-                  <div className="text-end">
-                    <div className="fw-bold">
-                      {method.orders.toLocaleString()}
-                    </div>
-                    <div className="text-muted small">total orders</div>
-                  </div>
-                </div>
-                <div className="d-flex justify-content-between align-items-center mt-2">
-                  <span className="text-muted">Total Payments Processed</span>
-                  <span className="text-success fw-bold">
-                    ETB {method.totalPayments.toLocaleString()}
-                  </span>
-                </div>
+
+      <div className="card mb-4">
+        <div className="card-header">
+          <h5 className="card-title">Order Statistics</h5>
+          <p className="card-text text-muted">Overview of order activity</p>
+        </div>
+        <div className="card-body">
+          <Bar ref={chartRef} data={chartData} options={chartOptions} />
+        </div>
+      </div>
+
+      <div className="row row-cols-1 row-cols-lg-2 g-4">
+        <div className="col">
+          <div className="card">
+            <div className="card-header">
+              <h5 className="card-title">Monthly Order Trends</h5>
+              <p className="card-text text-muted">
+                Order volume and value over time
+              </p>
+            </div>
+            <div className="card-body">
+              <div className="table-responsive">
+                <table className="table table-striped">
+                  <thead>
+                    <tr style={{ backgroundColor: "#f8f9fa" }}>
+                      <th
+                        style={{
+                          fontSize: "14px",
+                          color: "#6c757d",
+                          fontWeight: "normal",
+                        }}
+                      >
+                        Month
+                      </th>
+                      <th
+                        style={{
+                          fontSize: "14px",
+                          color: "#6c757d",
+                          fontWeight: "normal",
+                          textAlign: "right",
+                        }}
+                      >
+                        Orders
+                      </th>
+                      <th
+                        style={{
+                          fontSize: "14px",
+                          color: "#6c757d",
+                          fontWeight: "normal",
+                          textAlign: "right",
+                        }}
+                      >
+                        Value (ETB)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {safeOrders.orderTrends.map((trend, index) => (
+                      <tr
+                        key={index}
+                        className="bg-white shadow-sm rounded-lg mb-2"
+                        style={{ border: "1px solid #e9ecef" }}
+                      >
+                        <td
+                          style={{
+                            fontSize: "14px",
+                            color: "#212529",
+                            padding: "12px",
+                          }}
+                        >
+                          {trend.month}
+                        </td>
+                        <td
+                          style={{
+                            fontSize: "14px",
+                            color: "#212529",
+                            padding: "12px",
+                            textAlign: "right",
+                          }}
+                        >
+                          {trend.orders.toLocaleString()}
+                        </td>
+                        <td
+                          style={{
+                            fontSize: "14px",
+                            color: "#212529",
+                            padding: "12px",
+                            textAlign: "right",
+                          }}
+                        >
+                          {trend.value.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            </div>
+          </div>
+        </div>
+        <div className="col">
+          <div className="card">
+            <div className="card-header">
+              <h5 className="card-title">Payment Methods</h5>
+              <p className="card-text text-muted">
+                Payment processing via Chapa gateway
+              </p>
+            </div>
+            <div className="card-body">
+              {safeOrders.paymentMethods.map((method, index) => (
+                <div key={index} className="mb-3">
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div className="d-flex align-items-center">
+                      <CreditCard size={16} className="text-muted me-2" />
+                      <span>{method.method} Gateway</span>
+                    </div>
+                    <div className="text-end">
+                      <div className="fw-bold">
+                        {method.orders.toLocaleString()}
+                      </div>
+                      <div className="text-muted small">total orders</div>
+                    </div>
+                  </div>
+                  <div className="d-flex justify-content-between align-items-center mt-2">
+                    <span className="text-muted">Total Payments Processed</span>
+                    <span className="text-success fw-bold">
+                      ETB {method.totalPayments.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default OrderReport;

@@ -145,7 +145,7 @@ const OverviewReport = ({ startDate, endDate }) => {
     const reportTitle = "AGRILINK ETHIOPIA";
     const reportType = "Platform Overview Report";
     const period = `${startDate} to ${endDate}`;
-    const filePeriod = `${startDate}_to_${endDate}`;
+    const filePeriod = `${new Date().toISOString().split("T")[0]}`;
     const pageHeight = 297; // A4 height in mm
     const bottomMargin = 20; // Bottom margin for page
     const maxY = pageHeight - bottomMargin; // Max y before adding new page
@@ -234,6 +234,18 @@ const OverviewReport = ({ startDate, endDate }) => {
       });
       y += 15;
 
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "italic");
+      doc.text(
+        `Report Generated on Date: ${filePeriod}`,
+        doc.internal.pageSize.width / 2,
+        y,
+        {
+          align: "center",
+        }
+      );
+      y += 15;
+
       // Divider
       doc.setLineWidth(0.5);
       doc.setDrawColor(0, 128, 0);
@@ -306,13 +318,6 @@ const OverviewReport = ({ startDate, endDate }) => {
         y
       );
       y += 8;
-      checkPageOverflow();
-      doc.text(
-        `User Growth: ${data.overview.userGrowth}% (Change from previous period)`,
-        20,
-        y
-      );
-      y += 15;
       checkPageOverflow();
 
       // Divider

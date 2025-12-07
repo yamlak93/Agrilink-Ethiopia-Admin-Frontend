@@ -11,7 +11,7 @@ const DeliveryDetailModal = ({ delivery, onClose, onEdit, onStatusChange }) => {
     >
       <div
         className="modal-dialog modal-dialog-centered"
-        style={{ maxWidth: "400px" }}
+        style={{ maxWidth: "500px" }}
       >
         <div
           className="modal-content"
@@ -58,14 +58,36 @@ const DeliveryDetailModal = ({ delivery, onClose, onEdit, onStatusChange }) => {
               <strong style={{ color: "#6c757d" }}>Order ID:</strong>{" "}
               {delivery.orderId}
             </p>
-            <p>
-              <strong style={{ color: "#6c757d" }}>Product:</strong>{" "}
-              {delivery.productName}
-            </p>
-            <p>
-              <strong style={{ color: "#6c757d" }}>Quantity:</strong>{" "}
-              {delivery.quantity} {delivery.unit}
-            </p>
+
+            {/* FULL PRODUCT LIST */}
+            {delivery.productList?.length > 0 ? (
+              <div className="mb-3">
+                <strong style={{ color: "#6c757d" }}>Products:</strong>
+                <ul
+                  className="list-unstyled mt-1 mb-0"
+                  style={{ fontSize: "14px" }}
+                >
+                  {delivery.productList.map((p, i) => (
+                    <li key={i}>
+                      <strong>{p.name}</strong> — {p.quantity} {p.unit} @ ETB{" "}
+                      {p.price} = ETB {p.total}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <>
+                <p>
+                  <strong style={{ color: "#6c757d" }}>Product:</strong>{" "}
+                  {delivery.productName || "N/A"}
+                </p>
+                <p>
+                  <strong style={{ color: "#6c757d" }}>Quantity:</strong>{" "}
+                  {delivery.quantity || 0} {delivery.unit || ""}
+                </p>
+              </>
+            )}
+
             <p>
               <strong style={{ color: "#6c757d" }}>Farmer:</strong>{" "}
               {delivery.farmerName}
@@ -86,14 +108,18 @@ const DeliveryDetailModal = ({ delivery, onClose, onEdit, onStatusChange }) => {
               <strong style={{ color: "#6c757d" }}>Delivery Address:</strong>{" "}
               {delivery.deliveryAddress}
             </p>
-            <p>
-              <strong style={{ color: "#6c757d" }}>Farm Name:</strong>{" "}
-              {delivery.farmName}
-            </p>
-            <p>
-              <strong style={{ color: "#6c757d" }}>Farm Location:</strong>{" "}
-              {delivery.farmLocation}
-            </p>
+            {delivery.farmName && (
+              <p>
+                <strong style={{ color: "#6c757d" }}>Farm Name:</strong>{" "}
+                {delivery.farmName}
+              </p>
+            )}
+            {delivery.farmLocation && (
+              <p>
+                <strong style={{ color: "#6c757d" }}>Farm Location:</strong>{" "}
+                {delivery.farmLocation}
+              </p>
+            )}
             <p>
               <strong style={{ color: "#6c757d" }}>Status:</strong>{" "}
               <span
@@ -118,6 +144,7 @@ const DeliveryDetailModal = ({ delivery, onClose, onEdit, onStatusChange }) => {
                 {delivery.status}
               </span>
             </p>
+
             <div className="mt-3">
               <label
                 className="form-label"
@@ -145,6 +172,7 @@ const DeliveryDetailModal = ({ delivery, onClose, onEdit, onStatusChange }) => {
               </select>
             </div>
           </div>
+
           <div
             className="modal-footer"
             style={{

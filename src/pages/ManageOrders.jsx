@@ -1,21 +1,18 @@
 import React, { useState, useEffect } from "react";
-import "../Css/Devices.css"; // Import Devices.css for ms-md-250
+import "../Css/Devices.css";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import OrderDetailModal from "../components/OrderDetailModal";
 import StylishModal from "../components/StylishModal";
-import { FaSearch, FaFilter } from "react-icons/fa"; // Import icons from react-icons
+import { FaSearch, FaFilter } from "react-icons/fa";
 import "bootstrap/dist/css/bootstrap.min.css";
-import apiClient from "../api/api"; // Import api.js
+import apiClient from "../api/api";
 
 const ManageOrders = () => {
   const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [dateFilter, setDateFilter] = useState({
-    startDate: "",
-  });
-
+  const [dateFilter, setDateFilter] = useState({ startDate: "" });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -24,11 +21,7 @@ const ManageOrders = () => {
   const [modalMessage, setModalMessage] = useState("");
   const [modalType, setModalType] = useState("success");
   const [editFormData, setEditFormData] = useState({
-    productName: "",
-    quantity: "",
     totalPrice: "",
-    buyerName: "",
-    farmerName: "",
     status: "",
   });
   const [loading, setLoading] = useState(true);
@@ -39,39 +32,36 @@ const ManageOrders = () => {
     const fetchOrders = async () => {
       setLoading(true);
       setError(null);
-
       const token = localStorage.getItem("token");
       if (!token) {
         setError("Authentication required. Please log in.");
-        window.location.href = "/admin/login"; // Redirect if no token
+        window.location.href = "/admin/login";
         return;
       }
 
-      const headers = { Authorization: `Bearer ${token}` };
-
       try {
-        const response = await apiClient.get("/orders/all", { headers });
-        console.log("Fetched orders:", response.data.orders); // Debug log
+        const response = await apiClient.get("/orders/all", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
         const fetchedOrders = response.data.orders.map((order) => ({
-          id: order.id, // Use id directly from backend
-          productName: order.productName || "Unknown Product",
-          quantity: order.quantity || 0,
-          totalPrice: order.totalPrice || 0,
-          buyerName: order.buyerName || "Unknown Buyer",
-          farmerName: order.farmerName || "Unknown Farmer",
-          status: order.status || "pending",
-          orderDate: order.orderDate || new Date().toISOString().split("T")[0],
-          updatedAt: order.updatedAt || null, // Add updatedAt from backend
+          id: order.id,
+          products: order.products,
+          totalPrice: order.totalPrice,
+          buyerName: order.buyerName,
+          farmerName: order.farmerName,
+          status: order.status,
+          transactionStatus: order.transactionStatus,
+          orderDate: order.orderDate,
+          updatedAt: order.updatedAt,
         }));
 
-        if (isMounted) {
-          setOrders(fetchedOrders);
-        }
+        if (isMounted) setOrders(fetchedOrders);
       } catch (err) {
-        console.error("Failed to fetch orders:", err.response?.data || err);
+        console.error("Failed to fetch orders:", err);
         if (err.response?.status === 401) {
-          setError("Authentication failed. Please log in again.");
-          window.location.href = "/admin/login"; // Redirect on 401
+          localStorage.removeItem("token");
+          window.location.href = "/admin/login";
         } else {
           setError(
             `Failed to load orders. ${
@@ -80,16 +70,11 @@ const ManageOrders = () => {
           );
         }
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     };
-    fetchOrders().catch((err) => {
-      if (isMounted) {
-        console.error("Uncaught error in fetch:", err);
-      }
-    });
+
+    fetchOrders();
     return () => {
       isMounted = false;
     };
@@ -97,21 +82,15 @@ const ManageOrders = () => {
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
-      order.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.buyerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.farmerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.totalPrice.toString().includes(searchTerm);
+      order.products.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.buyerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.farmerName.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       statusFilter === "All" || order.status === statusFilter;
-
-    const startDate = dateFilter.startDate
-      ? new Date(dateFilter.startDate)
-      : null;
-    const orderDate = new Date(order.orderDate);
     const matchesDate =
-      !startDate || orderDate.toDateString() === startDate.toDateString();
+      !dateFilter.startDate || order.orderDate === dateFilter.startDate;
 
     return matchesSearch && matchesStatus && matchesDate;
   });
@@ -121,40 +100,22 @@ const ManageOrders = () => {
     try {
       await apiClient.put(
         `/orders/update/${selectedOrder.id}`,
+        { status: newStatus },
         {
-          status: newStatus,
-          productName: selectedOrder.productName,
-          quantity: selectedOrder.quantity,
-          totalPrice: selectedOrder.totalPrice,
-          buyerName: selectedOrder.buyerName,
-          farmerName: selectedOrder.farmerName,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
+
       setOrders((prev) =>
         prev.map((o) =>
-          o.id === selectedOrder.id
-            ? {
-                ...o,
-                status: newStatus,
-                updatedAt: new Date().toISOString().split("T")[0],
-              }
-            : o
+          o.id === selectedOrder.id ? { ...o, status: newStatus } : o
         )
       );
-      setSelectedOrder((prev) => ({
-        ...prev,
-        status: newStatus,
-        updatedAt: new Date().toISOString().split("T")[0],
-      })); // Update selectedOrder with current date
+      setSelectedOrder((prev) => ({ ...prev, status: newStatus }));
       setModalMessage("Order status updated successfully.");
       setModalType("success");
     } catch (err) {
-      console.error(
-        "Failed to update status:",
-        err.response?.data || err.message
-      );
-      setModalMessage("Failed to update order status.");
+      setModalMessage("Failed to update status.");
       setModalType("danger");
     } finally {
       setShowStylishModal(true);
@@ -169,29 +130,15 @@ const ManageOrders = () => {
       });
       setOrders((prev) =>
         prev.map((o) =>
-          o.id === selectedOrder.id
-            ? {
-                ...o,
-                ...editFormData,
-                updatedAt: new Date().toISOString().split("T")[0],
-              }
-            : o
+          o.id === selectedOrder.id ? { ...o, ...editFormData } : o
         )
       );
-      setSelectedOrder((prev) => ({
-        ...prev,
-        ...editFormData,
-        updatedAt: new Date().toISOString().split("T")[0],
-      })); // Update selectedOrder with current date
+      setSelectedOrder((prev) => ({ ...prev, ...editFormData }));
       setShowEditModal(false);
-      setModalMessage("Order details updated successfully.");
+      setModalMessage("Order updated successfully.");
       setModalType("success");
     } catch (err) {
-      console.error(
-        "Failed to update order:",
-        err.response?.data || err.message
-      );
-      setModalMessage("Failed to update order details.");
+      setModalMessage("Failed to update order.");
       setModalType("danger");
     } finally {
       setShowStylishModal(true);
@@ -209,10 +156,6 @@ const ManageOrders = () => {
       setModalMessage("Order deleted successfully.");
       setModalType("success");
     } catch (err) {
-      console.error(
-        "Failed to delete order:",
-        err.response?.data || err.message
-      );
       setModalMessage("Failed to delete order.");
       setModalType("danger");
     } finally {
@@ -253,7 +196,7 @@ const ManageOrders = () => {
         <Sidebar />
         <div
           className="container-fluid p-4 ms-md-250"
-          style={{ marginTop: "60px" }} // Keep marginTop for navbar offset
+          style={{ marginTop: "60px" }}
         >
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div>
@@ -281,7 +224,7 @@ const ManageOrders = () => {
                     Manage order details and statuses
                   </p>
                 </div>
-                <div className="d-flex align-items-center gap-4">
+                <div className="d-flex align-items-center flex-wrap flex-lg-nowrap gap-3">
                   <div className="search-container">
                     <FaSearch
                       size={16}
@@ -328,10 +271,7 @@ const ManageOrders = () => {
                       className="form-control filter-select"
                       value={dateFilter.startDate}
                       onChange={(e) =>
-                        setDateFilter({
-                          ...dateFilter,
-                          startDate: e.target.value,
-                        })
+                        setDateFilter({ startDate: e.target.value })
                       }
                       aria-label="Filter by date"
                     />
@@ -339,6 +279,7 @@ const ManageOrders = () => {
                 </div>
               </div>
             </div>
+
             <div className="card-body">
               <div className="table-responsive">
                 <table className="table table-striped">
@@ -370,15 +311,6 @@ const ManageOrders = () => {
                         }}
                       >
                         Products
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Quantity
                       </th>
                       <th
                         style={{
@@ -442,22 +374,20 @@ const ManageOrders = () => {
                         .sort(
                           (a, b) =>
                             new Date(b.orderDate) - new Date(a.orderDate)
-                        ) // Sort by orderDate descending
+                        )
                         .map((order, index) => (
-                          <tr key={order.id}>
+                          /* UNIQUE KEY */
+                          <tr key={`${order.id}-${index}`}>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
                               {index + 1}
                             </td>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
-                              {order.id} {/* Removed "N/A" fallback */}
+                              {order.id}
                             </td>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
                               <div style={{ fontWeight: "bold" }}>
-                                {order.productName}
+                                {order.products}
                               </div>
-                            </td>
-                            <td style={{ fontSize: "14px", color: "#212529" }}>
-                              {order.quantity}
                             </td>
                             <td style={{ fontSize: "14px", color: "#212529" }}>
                               ${order.totalPrice.toFixed(2)}
@@ -507,7 +437,7 @@ const ManageOrders = () => {
                                   setShowDetailsModal(true);
                                 }}
                               >
-                                ⋮
+                                ...
                               </button>
                             </td>
                           </tr>
@@ -529,18 +459,14 @@ const ManageOrders = () => {
             </div>
           </div>
 
-          {/* Show detail modal */}
+          {/* Details Modal */}
           {showDetailsModal && (
             <OrderDetailModal
               order={selectedOrder}
               onClose={() => setShowDetailsModal(false)}
               onEdit={() => {
                 setEditFormData({
-                  productName: selectedOrder.productName,
-                  quantity: selectedOrder.quantity,
                   totalPrice: selectedOrder.totalPrice,
-                  buyerName: selectedOrder.buyerName,
-                  farmerName: selectedOrder.farmerName,
                   status: selectedOrder.status,
                 });
                 setShowDetailsModal(false);
@@ -554,7 +480,7 @@ const ManageOrders = () => {
             />
           )}
 
-          {/* Show edit modal */}
+          {/* Edit Modal */}
           {showEditModal && (
             <div
               className="modal show d-block"
@@ -585,7 +511,7 @@ const ManageOrders = () => {
                         fontWeight: "600",
                       }}
                     >
-                      Edit Order: {selectedOrder.productName}
+                      Edit Order: {selectedOrder.id}
                     </h5>
                     <button
                       type="button"
@@ -612,32 +538,13 @@ const ManageOrders = () => {
                           className="form-label"
                           style={{ fontSize: "14px", color: "#6c757d" }}
                         >
-                          Product Name
+                          Products
                         </label>
                         <input
                           type="text"
                           className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                          }}
-                          value={editFormData.productName}
+                          value={selectedOrder.products}
                           disabled
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <label
-                          className="form-label"
-                          style={{ fontSize: "14px", color: "#6c757d" }}
-                        >
-                          Quantity
-                        </label>
-                        <input
-                          type="number"
-                          className="form-control"
                           style={{
                             fontSize: "14px",
                             color: "#495057",
@@ -645,13 +552,6 @@ const ManageOrders = () => {
                             padding: "6px 12px",
                             borderRadius: "4px",
                           }}
-                          value={editFormData.quantity}
-                          onChange={(e) =>
-                            setEditFormData({
-                              ...editFormData,
-                              quantity: e.target.value,
-                            })
-                          }
                         />
                       </div>
                       <div className="mb-3">
@@ -664,13 +564,6 @@ const ManageOrders = () => {
                         <input
                           type="text"
                           className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                          }}
                           value={editFormData.totalPrice}
                           onChange={(e) =>
                             setEditFormData({
@@ -678,18 +571,6 @@ const ManageOrders = () => {
                               totalPrice: e.target.value,
                             })
                           }
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <label
-                          className="form-label"
-                          style={{ fontSize: "14px", color: "#6c757d" }}
-                        >
-                          Buyer Name
-                        </label>
-                        <input
-                          type="text"
-                          className="form-control"
                           style={{
                             fontSize: "14px",
                             color: "#495057",
@@ -697,29 +578,6 @@ const ManageOrders = () => {
                             padding: "6px 12px",
                             borderRadius: "4px",
                           }}
-                          value={editFormData.buyerName}
-                          disabled
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <label
-                          className="form-label"
-                          style={{ fontSize: "14px", color: "#6c757d" }}
-                        >
-                          Farmer Name
-                        </label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                          }}
-                          value={editFormData.farmerName}
-                          disabled
                         />
                       </div>
                       <div className="mb-3">
@@ -731,13 +589,6 @@ const ManageOrders = () => {
                         </label>
                         <select
                           className="form-select"
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                          }}
                           value={editFormData.status}
                           onChange={(e) =>
                             setEditFormData({
@@ -745,6 +596,13 @@ const ManageOrders = () => {
                               status: e.target.value,
                             })
                           }
+                          style={{
+                            fontSize: "14px",
+                            color: "#495057",
+                            borderColor: "#ced4da",
+                            padding: "6px 12px",
+                            borderRadius: "4px",
+                          }}
                         >
                           <option value="pending">Pending</option>
                           <option value="processing">Processing</option>
@@ -823,7 +681,7 @@ const ManageOrders = () => {
                         fontWeight: "600",
                       }}
                     >
-                      Confirm Delete: {selectedOrder.productName}
+                      Confirm Delete
                     </h5>
                     <button
                       type="button"
@@ -848,10 +706,6 @@ const ManageOrders = () => {
                       <strong style={{ color: "#6c757d" }}>
                         Are you sure you want to delete this order?
                       </strong>
-                    </p>
-                    <p>
-                      <strong style={{ color: "#6c757d" }}>Product:</strong>{" "}
-                      {selectedOrder.productName}
                     </p>
                     <p>
                       <strong style={{ color: "#6c757d" }}>ID:</strong>{" "}
@@ -895,7 +749,7 @@ const ManageOrders = () => {
             </div>
           )}
 
-          {/* Stylish Confirmation Modal */}
+          {/* Success/Error Modal */}
           <StylishModal
             isVisible={showStylishModal}
             message={modalMessage}

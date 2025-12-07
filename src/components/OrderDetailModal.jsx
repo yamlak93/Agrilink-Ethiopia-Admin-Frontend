@@ -10,22 +10,43 @@ const OrderDetailModal = ({
   if (!order) return null;
 
   const getPaymentStatusStyle = () => {
-    switch (order.paymentStatus || "Pending") {
-      case "Paid":
+    switch (order.transactionStatus) {
+      case "completed":
         return {
           color: "#28a745",
           backgroundColor: "#e6ffe6",
           padding: "2px 6px",
           borderRadius: "4px",
         };
-      case "Pending":
+      case "pending":
         return {
           color: "#ffc107",
           backgroundColor: "#fff3cd",
           padding: "2px 6px",
           borderRadius: "4px",
         };
-      case "Failed":
+      case "processing":
+        return {
+          color: "#072cffff",
+          backgroundColor: "#078fff87",
+          padding: "2px 6px",
+          borderRadius: "4px",
+        };
+      case "approved":
+        return {
+          color: "#07eaffff",
+          backgroundColor: "#07ffea37",
+          padding: "2px 6px",
+          borderRadius: "4px",
+        };
+      case "rejected":
+        return {
+          color: "#dc3545",
+          backgroundColor: "#f8d7da",
+          padding: "2px 6px",
+          borderRadius: "4px",
+        };
+      case "failed":
       default:
         return {
           color: "#dc3545",
@@ -36,6 +57,41 @@ const OrderDetailModal = ({
     }
   };
 
+  // SAFE PARSING: handles both "kilogram (kg)" and "piece"
+  const parseProducts = (productsStr) => {
+    if (!productsStr || productsStr === "No items") return [];
+
+    return productsStr.split(" | ").map((item) => {
+      // Case 1: "Onion (10 kilogram (kg))"
+      const complexMatch = item.match(
+        /^(.+?)\s*\((\d+)\s+(.+?)\s*\(\s*([^\)]+)\s*\)\)$/
+      );
+      if (complexMatch) {
+        const [, name, quantity, unit, abbrev] = complexMatch;
+        return {
+          name: name.trim(),
+          quantity: parseInt(quantity),
+          unit: `${unit.trim()} (${abbrev.trim()})`,
+        };
+      }
+
+      // Case 2: "Teff (10 piece)"
+      const simpleMatch = item.match(/^(.+?)\s*\((\d+)\s+([^\)]+)\)$/);
+      if (simpleMatch) {
+        const [, name, quantity, unit] = simpleMatch;
+        return {
+          name: name.trim(),
+          quantity: parseInt(quantity),
+          unit: unit.trim(),
+        };
+      }
+
+      return { name: item.trim(), quantity: 1, unit: "" };
+    });
+  };
+
+  const productList = parseProducts(order.products);
+
   return (
     <div
       className="modal show d-block"
@@ -44,7 +100,7 @@ const OrderDetailModal = ({
     >
       <div
         className="modal-dialog modal-dialog-centered"
-        style={{ maxWidth: "500px" }}
+        style={{ maxWidth: "550px" }}
       >
         <div
           className="modal-content"
@@ -66,7 +122,7 @@ const OrderDetailModal = ({
               className="modal-title"
               style={{ fontSize: "18px", color: "#1a2e5a", fontWeight: "600" }}
             >
-              Order Details: {order.productName}
+              Order Details: {order.id}
             </h5>
             <span
               style={{
@@ -85,7 +141,7 @@ const OrderDetailModal = ({
                     : order.status === "in transit"
                     ? "#007bff"
                     : order.status === "processing"
-                    ? "#17a2b8"
+                    ? "#17a3b859"
                     : "#e6ffe6",
                 display: "inline-flex",
                 alignItems: "center",
@@ -108,6 +164,7 @@ const OrderDetailModal = ({
               ></button>
             </span>
           </div>
+
           <div
             className="modal-body"
             style={{ padding: "15px", fontSize: "14px", color: "#495057" }}
@@ -117,44 +174,65 @@ const OrderDetailModal = ({
                 Detailed information about the order
               </strong>
             </p>
+
             <p>
               <strong style={{ color: "#6c757d" }}>Order ID:</strong> {order.id}
             </p>
-            <p>
-              <strong style={{ color: "#6c757d" }}>Product:</strong>{" "}
-              {order.productName}
-            </p>
-            <p>
-              <strong style={{ color: "#6c757d" }}>Quantity:</strong>{" "}
-              {order.quantity}
-            </p>
+
+            <div className="mb-3">
+              <strong style={{ color: "#6c757d" }}>Products:</strong>
+              {productList.length > 0 ? (
+                <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
+                  {productList.map((prod, idx) => (
+                    <li
+                      key={idx}
+                      style={{ fontSize: "14px", color: "#212529" }}
+                    >
+                      <strong>{prod.name}</strong> — {prod.quantity} {prod.unit}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span style={{ color: "#6c757d", fontStyle: "italic" }}>
+                  {" "}
+                  No items
+                </span>
+              )}
+            </div>
+
             <p>
               <strong style={{ color: "#6c757d" }}>Total Price:</strong> $
               {order.totalPrice.toFixed(2)}
             </p>
+
             <p>
               <strong style={{ color: "#6c757d" }}>Buyer Name:</strong>{" "}
               {order.buyerName}
             </p>
+
             <p>
               <strong style={{ color: "#6c757d" }}>Farmer Name:</strong>{" "}
               {order.farmerName}
             </p>
+
             <p>
               <strong style={{ color: "#6c757d" }}>Order Date:</strong>{" "}
               {order.orderDate}
             </p>
+
             <p>
               <strong style={{ color: "#6c757d" }}>Payment Status:</strong>{" "}
               <span style={getPaymentStatusStyle()}>
-                {order.paymentStatus || "Pending"}
+                {order.transactionStatus || "Pending"}
               </span>
             </p>
+
             <p>
               <strong style={{ color: "#6c757d" }}>Status Changed Date:</strong>{" "}
-              {order.updatedAt || "Not updated yet"} {/* Display updatedAt */}
+              {order.updatedAt || "Not updated yet"}
             </p>
           </div>
+
           <div
             className="modal-footer"
             style={{
@@ -195,6 +273,7 @@ const OrderDetailModal = ({
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
+
             <div style={{ display: "flex", gap: "15px" }}>
               <button
                 className="btn btn-primary"

@@ -29,6 +29,7 @@ const ManageProducts = () => {
     stock: "",
     farmer: "",
     region: "",
+    unit: "",
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -57,6 +58,7 @@ const ManageProducts = () => {
           description: product.description,
           price: product.price.toString(), // Convert to string for input
           category: product.category,
+          unit: product.unit,
           stock: product.quantity.toString(), // Convert to string for input
           availability:
             product.status === "available" ? "Available" : "Out of Stock",
@@ -102,7 +104,8 @@ const ManageProducts = () => {
       product.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.farmer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.region.toLowerCase().includes(searchTerm.toLowerCase());
+      product.region.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.category.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesCategory =
       categoryFilter === "All" || product.category === categoryFilter;
@@ -274,10 +277,14 @@ const ManageProducts = () => {
                     Manage product details and statuses
                   </p>
                 </div>
-                <div className="d-flex align-items-center gap-4">
-                  {" "}
-                  {/* Increased gap with gap-4 */}
-                  <div className="search-container">
+
+                {/* === FILTERS – MOBILE FRIENDLY === */}
+                <div className="d-flex align-items-center flex-wrap flex-lg-nowrap gap-3">
+                  {/* Search */}
+                  <div
+                    className="search-container w-100 w-lg-auto"
+                    style={{ minWidth: "150px" }}
+                  >
                     <FaSearch
                       size={16}
                       className="search-icon"
@@ -292,7 +299,12 @@ const ManageProducts = () => {
                       aria-label="Search products"
                     />
                   </div>
-                  <div className="filter-container">
+
+                  {/* Category Filter */}
+                  <div
+                    className="filter-container w-100 w-lg-auto"
+                    style={{ minWidth: "130px" }}
+                  >
                     <FaFilter
                       size={16}
                       className="filter-icon"
@@ -321,7 +333,12 @@ const ManageProducts = () => {
                       <option value="Processing Crops">Processing Crops</option>
                     </select>
                   </div>
-                  <div className="filter-container">
+
+                  {/* Availability Filter */}
+                  <div
+                    className="filter-container w-100 w-lg-auto"
+                    style={{ minWidth: "130px" }}
+                  >
                     <FaFilter
                       size={16}
                       className="filter-icon"
@@ -506,6 +523,7 @@ const ManageProducts = () => {
                           </td>
                           <td style={{ fontSize: "14px", color: "#212529" }}>
                             {product.stock}
+                            {" " + product.unit}
                           </td>
                           <td style={{ fontSize: "14px", color: "#212529" }}>
                             {product.farmer || "N/A"}{" "}
@@ -581,6 +599,7 @@ const ManageProducts = () => {
                   stock: selectedProduct.stock,
                   farmer: selectedProduct.farmer, // Set but uneditable
                   region: selectedProduct.region, // Set but uneditable
+                  unit: selectedProduct.unit,
                 });
                 setShowDetailsModal(false);
                 setShowEditModal(true);

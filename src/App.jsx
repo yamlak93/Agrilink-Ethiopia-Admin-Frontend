@@ -17,6 +17,8 @@ import Reports from "./pages/Reports";
 import PaymentsPage from "./pages/PaymentsPage";
 import LoginPage from "./auth/LoginPage";
 import RegisterPage from "./auth/RegisterPage";
+import ForgotPasswordPage from "./auth/ForgotPasswordPage";
+import FarmerBankAccountPage from "./pages/FarmerBankAccountPage";
 
 function App() {
   return (
@@ -25,6 +27,10 @@ function App() {
         <Routes>
           <Route path="/admin/login" element={<LoginPage />} />
           <Route path="/admin/register" element={<RegisterPage />} />
+          <Route
+            path="/admin/forgot-password"
+            element={<ForgotPasswordPage />}
+          />
           <Route path="/admin/dashboard" element={<Dashboard />} />
           <Route path="/admin/manage-users" element={<ManageUsers />} />
           <Route path="/admin/manage-products" element={<ManageProducts />} />
@@ -38,6 +44,10 @@ function App() {
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/reports" element={<Reports />} />
           <Route path="/admin/payments" element={<PaymentsPage />} />
+          <Route
+            path="/admin/manage-banks-accounts"
+            element={<FarmerBankAccountPage />}
+          />
         </Routes>
       </Router>
     </>

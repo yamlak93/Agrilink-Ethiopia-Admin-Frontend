@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import "../Css/sidebar.css";
 import {
@@ -13,14 +13,25 @@ import {
   FaBars,
   FaChartLine,
   FaBook,
+  FaUniversity,
 } from "react-icons/fa";
 import { FaMoneyCheckDollar } from "react-icons/fa6";
 
 const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [userName, setUserName] = useState("Demo User"); // Default to Demo User
 
   const location = useLocation(); // Added this since isActive uses it
   const isActive = (path) => location.pathname === path;
+
+  // Fetch user name from localStorage on mount
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      const parsedUser = JSON.parse(userData);
+      setUserName(parsedUser.name || "Demo User"); // Extract name from userData
+    }
+  }, []);
 
   return (
     <>
@@ -120,18 +131,7 @@ const Sidebar = () => {
               Tips & Alerts
             </Link>
           </li>
-          <li className="nav-item">
-            <Link
-              to="/admin/analytics"
-              className={`nav-link ${
-                isActive("/admin/analytics") ? "active-link" : ""
-              }`}
-              onClick={() => setIsOpen(false)}
-            >
-              <FaChartLine className="me-2" />
-              Analytics
-            </Link>
-          </li>
+
           <li className="nav-item">
             <Link
               to="/admin/payments"
@@ -146,6 +146,30 @@ const Sidebar = () => {
           </li>
           <li className="nav-item">
             <Link
+              to="/admin/manage-banks-accounts"
+              className={`nav-link ${
+                isActive("/admin/manage-banks-accounts") ? "active-link" : ""
+              }`}
+              onClick={() => setIsOpen(false)}
+            >
+              <FaUniversity className="me-2" />
+              Farmers Bank Accounts
+            </Link>
+          </li>
+          <li className="nav-item">
+            <Link
+              to="/admin/analytics"
+              className={`nav-link ${
+                isActive("/admin/analytics") ? "active-link" : ""
+              }`}
+              onClick={() => setIsOpen(false)}
+            >
+              <FaChartLine className="me-2" />
+              Analytics
+            </Link>
+          </li>
+          <li className="nav-item">
+            <Link
               to="/admin/reports"
               className={`nav-link ${
                 isActive("/admin/reports") ? "active-link" : ""
@@ -156,7 +180,6 @@ const Sidebar = () => {
               Reports
             </Link>
           </li>
-
           <li className="nav-item">
             <Link
               to="/admin/settings"
@@ -173,7 +196,7 @@ const Sidebar = () => {
         <div className="user-info mt-auto px-3 py-2">
           <FaUser className="me-2" />
           <div>
-            <div className="fw-bold">Demo User</div>
+            <div className="fw-bold">{userName}</div>
             <div className="text-muted small">Admin</div>
           </div>
         </div>

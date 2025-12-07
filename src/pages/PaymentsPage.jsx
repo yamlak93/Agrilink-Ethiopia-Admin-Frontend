@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   CreditCard,
   RefreshCw,
   DollarSign,
   TrendingUp,
-  AlertCircle,
   CheckCircle,
   XCircle,
   Search,
@@ -13,124 +12,36 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
-import "../Css/Devices.css"; // Import Devices.css for ms-md-250
+import "../Css/Devices.css";
 import "../Css/PaymentsPage.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import apiClient from "../api/api";
+
+// Format date: Oct 29, 2025
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
 
 const PaymentsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [transactions, setTransactions] = useState([]);
+  const [backendSummary, setBackendSummary] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [editedStatus, setEditedStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Calculate payment summary dynamically based on current and previous month
-  const currentDate = new Date();
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth() + 1; // September (9)
-  const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1; // August (8) or December (12) if January
-  const lastYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-
-  const currentStart = new Date(`${currentYear}-${currentMonth}-01`);
-  const currentEnd = new Date(currentDate);
-  const lastStart = new Date(`${lastYear}-${lastMonth}-01`);
-  const lastEnd = new Date(lastYear, lastMonth, 0); // Last day of previous month
-
-  const currentTransactions = transactions.filter(
-    (t) => new Date(t.date) >= currentStart && new Date(t.date) <= currentEnd
-  );
-  const lastTransactions = transactions.filter(
-    (t) => new Date(t.date) >= lastStart && new Date(t.date) <= lastEnd
-  );
-
-  const currentCompletedPayments = currentTransactions.filter(
-    (t) => t.type === "payment" && t.status === "completed"
-  );
-  const lastCompletedPayments = lastTransactions.filter(
-    (t) => t.type === "payment" && t.status === "completed"
-  );
-  const currentTotalPayments = currentCompletedPayments.reduce(
-    (sum, t) => sum + (t.amount || 0),
-    0
-  );
-  const lastTotalPayments = lastCompletedPayments.reduce(
-    (sum, t) => sum + (t.amount || 0),
-    0
-  );
-  const totalPaymentsChange =
-    lastTotalPayments > 0
-      ? ((currentTotalPayments - lastTotalPayments) / lastTotalPayments) * 100
-      : currentTotalPayments > 0
-      ? 100
-      : 0;
-
-  const currentSuccessfulPayments = currentCompletedPayments.length;
-  const lastSuccessfulPayments = lastCompletedPayments.length;
-  const successfulPaymentsChange =
-    lastSuccessfulPayments > 0
-      ? ((currentSuccessfulPayments - lastSuccessfulPayments) /
-          lastSuccessfulPayments) *
-        100
-      : currentSuccessfulPayments > 0
-      ? 100
-      : 0;
-  const successfulPaymentsPercentage =
-    currentTotalPayments > 0
-      ? (
-          (currentSuccessfulPayments /
-            currentTransactions.filter((t) => t.type === "payment").length) *
-          100
-        ).toFixed(1)
-      : 0;
-
-  const currentPendingRefunds = currentTransactions.filter(
-    (t) => t.type === "refund" && t.status === "pending"
-  ).length;
-
-  const currentTotalRefunded = currentTransactions
-    .filter((t) => t.type === "refund" && t.status === "approved")
-    .reduce((sum, t) => sum + (t.amount || 0), 0);
-  const refundedPercentage =
-    currentTotalPayments > 0
-      ? ((currentTotalRefunded / currentTotalPayments) * 100).toFixed(1)
-      : 0;
-
-  const currentAvgOrderValue =
-    currentCompletedPayments.length > 0
-      ? currentTotalPayments / currentCompletedPayments.length
-      : 0;
-  const lastAvgOrderValue =
-    lastCompletedPayments.length > 0
-      ? lastTotalPayments / lastCompletedPayments.length
-      : 0;
-  const avgOrderValueChange =
-    lastAvgOrderValue > 0
-      ? ((currentAvgOrderValue - lastAvgOrderValue) / lastAvgOrderValue) * 100
-      : currentAvgOrderValue > 0
-      ? 100
-      : 0;
-
-  const paymentSummary = {
-    totalPayments: currentTotalPayments,
-    successfulPayments: currentSuccessfulPayments,
-    pendingRefunds: currentPendingRefunds,
-    totalRefunded: currentTotalRefunded,
-    averageOrderValue: currentAvgOrderValue,
-    totalPaymentsChange: totalPaymentsChange.toFixed(2),
-    successfulPaymentsChange: successfulPaymentsChange.toFixed(2),
-    successfulPaymentsPercentage: successfulPaymentsPercentage,
-    refundedPercentage: refundedPercentage,
-    avgOrderValueChange: avgOrderValueChange.toFixed(2),
-  };
-
-  // Fetch transactions from backend
+  // FETCH DATA
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
       const token = localStorage.getItem("token");
@@ -139,150 +50,135 @@ const PaymentsPage = () => {
         return;
       }
       try {
-        const response = await apiClient.get("/payments/all", {
+        const { data } = await apiClient.get("/payments/all", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setTransactions(response.data.transactions || []);
+        setTransactions(data.transactions || []);
+        setBackendSummary(data.paymentSummary);
       } catch (err) {
-        console.error("Failed to fetch transactions:", err);
-        setError("Failed to load transactions. Please try again later.");
+        console.error(err);
+        setError("Failed to load data.");
       } finally {
         setLoading(false);
       }
     };
-    fetchTransactions();
+    fetchData();
   }, []);
 
-  // Filter transactions based on search term, status, and type
-  useEffect(() => {
-    let filtered = transactions;
-
-    if (typeFilter !== "all") {
-      filtered = filtered.filter(
-        (transaction) => transaction.type === typeFilter
-      );
-    }
-
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(
-        (transaction) => transaction.status === statusFilter
-      );
-    }
-
+  // FILTERED TRANSACTIONS
+  const filteredTransactions = useMemo(() => {
+    let list = [...transactions];
+    if (typeFilter !== "all") list = list.filter((t) => t.type === typeFilter);
+    if (statusFilter !== "all")
+      list = list.filter((t) => t.status === statusFilter);
     if (searchTerm) {
-      const lowercasedQuery = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (transaction) =>
-          (transaction.id ? transaction.id.toLowerCase() : "").includes(
-            lowercasedQuery
-          ) ||
-          (transaction.orderId
-            ? transaction.orderId.toLowerCase()
-            : ""
-          ).includes(lowercasedQuery) ||
-          (transaction.farmer ? transaction.farmer.toLowerCase() : "").includes(
-            lowercasedQuery
-          ) ||
-          (transaction.buyer ? transaction.buyer.toLowerCase() : "").includes(
-            lowercasedQuery
-          ) ||
-          (transaction.product
-            ? transaction.product.toLowerCase()
-            : ""
-          ).includes(lowercasedQuery) ||
-          (transaction.transactionId
-            ? transaction.transactionId.toLowerCase()
-            : ""
-          ).includes(lowercasedQuery)
+      const q = searchTerm.toLowerCase();
+      list = list.filter((t) =>
+        [t.id, t.orderId, t.farmer, t.buyer, t.product].some((v) =>
+          String(v || "")
+            .toLowerCase()
+            .includes(q)
+        )
       );
     }
+    return list;
+  }, [transactions, typeFilter, statusFilter, searchTerm]);
 
-    setFilteredTransactions(filtered);
-  }, [searchTerm, statusFilter, typeFilter, transactions]);
+  // LIVE SUMMARY FOR FILTERED ROWS
+  const liveSummary = useMemo(() => {
+    const completedPayments = filteredTransactions.filter(
+      (t) =>
+        (t.type === "payment" || t.type === "paymentToFarmer") &&
+        t.status === "completed"
+    );
 
-  const [filteredTransactions, setFilteredTransactions] = useState([]);
+    const totalPayments = completedPayments.reduce(
+      (s, t) => s + (t.amount || 0),
+      0
+    );
+    const successfulPayments = completedPayments.length;
+    const pendingRefunds = filteredTransactions.filter(
+      (t) => t.type === "refund" && t.status === "pending"
+    ).length;
+    const totalRefunded = filteredTransactions
+      .filter((t) => t.type === "refund" && t.status === "approved")
+      .reduce((s, t) => s + (t.amount || 0), 0);
+    const averageOrderValue =
+      successfulPayments > 0 ? totalPayments / successfulPayments : 0;
+
+    const successfulPaymentsPercentage =
+      totalPayments > 0
+        ? ((successfulPayments / completedPayments.length) * 100).toFixed(1)
+        : 0;
+    const refundedPercentage =
+      totalPayments > 0
+        ? ((totalRefunded / totalPayments) * 100).toFixed(1)
+        : 0;
+
+    return {
+      totalPayments,
+      successfulPayments,
+      pendingRefunds,
+      totalRefunded,
+      averageOrderValue: Number(averageOrderValue.toFixed(2)),
+      successfulPaymentsPercentage,
+      refundedPercentage,
+      totalPaymentsChange: backendSummary?.totalPaymentsChange ?? 0,
+      successfulPaymentsChange: backendSummary?.successfulPaymentsChange ?? 0,
+      averageOrderValueChange: backendSummary?.averageOrderValueChange ?? 0,
+    };
+  }, [filteredTransactions, backendSummary]);
+
+  // BADGE COLORS
+  const getTypeColor = (type) => {
+    const map = {
+      payment: "bg-primary",
+      refund: "bg-danger",
+      paymentToFarmer: "bg-success",
+    };
+    return map[type] ?? "bg-secondary";
+  };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case "completed":
-        return "bg-success";
-      case "pending":
-        return "bg-warning";
-      case "processing":
-        return "bg-primary";
-      case "approved":
-        return "bg-info";
-      case "failed":
-        return "bg-danger";
-      case "rejected":
-        return "bg-danger";
-      default:
-        return "bg-secondary";
-    }
+    const map = {
+      completed: "bg-success",
+      pending: "bg-warning",
+      processing: "bg-primary",
+      approved: "bg-info",
+      failed: "bg-danger",
+      rejected: "bg-danger",
+    };
+    return map[status] ?? "bg-secondary";
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "completed":
-        return <CheckCircle size={16} />;
-      case "pending":
-        return <AlertCircle size={16} />;
-      case "processing":
-        return <RefreshCw size={16} />;
-      case "approved":
-        return <CheckCircle size={16} />;
-      case "failed":
-        return <XCircle size={16} />;
-      case "rejected":
-        return <XCircle size={16} />;
-      default:
-        return <AlertCircle size={16} />;
-    }
-  };
-
-  const handleOpenModal = (transaction) => {
-    setSelectedTransaction(transaction);
-    setEditedStatus(transaction.status);
+  // MODAL
+  const handleOpenModal = (tx) => {
+    setSelectedTransaction(tx);
+    setEditedStatus(tx.status);
     setIsModalOpen(true);
   };
 
   const handleSaveChanges = async () => {
-    if (selectedTransaction) {
-      const token = localStorage.getItem("token");
-      try {
-        console.log("Updating transaction:", {
-          transactionId: selectedTransaction.id,
-          status: editedStatus,
-        }); // Debug log
-        const response = await apiClient.put(
-          `/payments/update-status/${selectedTransaction.id}`,
-          { status: editedStatus },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        console.log("Update response:", response.data); // Debug log
-        setTransactions((prev) =>
-          prev.map((transaction) =>
-            transaction.id === selectedTransaction.id
-              ? { ...transaction, status: editedStatus }
-              : transaction
-          )
-        );
-        setIsModalOpen(false);
-      } catch (err) {
-        const errorMessage = err.response
-          ? err.response.data.message || err.response.data
-          : err.message;
-        console.error(
-          "Failed to update status:",
-          err.response ? err.response.data : err
-        );
-        setError(
-          `Failed to update transaction status. Details: ${errorMessage}`
-        );
-      }
+    if (!selectedTransaction) return;
+    const token = localStorage.getItem("token");
+    try {
+      await apiClient.put(
+        `/payments/update-status/${selectedTransaction.id}`,
+        { status: editedStatus },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setTransactions((prev) =>
+        prev.map((t) =>
+          t.id === selectedTransaction.id ? { ...t, status: editedStatus } : t
+        )
+      );
+      setIsModalOpen(false);
+    } catch (err) {
+      setError("Update failed.");
     }
   };
 
+  // LOADING / ERROR
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center min-vh-100">
@@ -316,8 +212,9 @@ const PaymentsPage = () => {
         <Sidebar />
         <div
           className="container-fluid p-4 ms-md-250"
-          style={{ marginTop: "60px" }} // Keep marginTop for navbar offset
+          style={{ marginTop: "60px" }}
         >
+          {/* Header */}
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div>
               <h2
@@ -330,13 +227,14 @@ const PaymentsPage = () => {
                 className="text-muted"
                 style={{ fontSize: "14px", color: "#6c757d" }}
               >
-                Manage payment transactions and refund requests
+                Manage payments, farmer payouts, and refunds
               </p>
             </div>
           </div>
 
-          {/* Payment Summary Cards */}
+          {/* 5 SUMMARY CARDS */}
           <div className="row row-cols-1 row-cols-md-2 row-cols-lg-5 g-4 mb-4">
+            {/* 1. Total Payments */}
             <div className="col">
               <div className="card summary-card h-100">
                 <div className="summary-card-header">
@@ -345,17 +243,23 @@ const PaymentsPage = () => {
                 </div>
                 <div className="summary-card-body">
                   <h3 className="summary-card-value">
-                    ETB {paymentSummary.totalPayments.toLocaleString()}
+                    ETB {Number(liveSummary.totalPayments).toLocaleString()}
                   </h3>
-                  <p className="summary-card-subtext text-success">
-                    {paymentSummary.totalPaymentsChange >= 0
-                      ? `+${paymentSummary.totalPaymentsChange}%`
-                      : `${paymentSummary.totalPaymentsChange}%`}{" "}
-                    from last month
+                  <p
+                    className={`summary-card-subtext ${
+                      liveSummary.totalPaymentsChange >= 0
+                        ? "text-success"
+                        : "text-danger"
+                    }`}
+                  >
+                    {liveSummary.totalPaymentsChange >= 0 ? "+" : ""}
+                    {liveSummary.totalPaymentsChange}% from last month
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* 2. Successful Payments */}
             <div className="col">
               <div className="card summary-card h-100">
                 <div className="summary-card-header">
@@ -364,19 +268,18 @@ const PaymentsPage = () => {
                 </div>
                 <div className="summary-card-body">
                   <h3 className="summary-card-value">
-                    {paymentSummary.successfulPayments.toLocaleString()}
+                    {liveSummary.successfulPayments}
                   </h3>
                   <p className="summary-card-subtext text-success">
-                    {paymentSummary.successfulPaymentsPercentage}% of total
-                    payments (
-                    {paymentSummary.successfulPaymentsChange >= 0
-                      ? `+${paymentSummary.successfulPaymentsChange}%`
-                      : `${paymentSummary.successfulPaymentsChange}%`}{" "}
-                    from last month)
+                    {liveSummary.successfulPaymentsPercentage}% of total (
+                    {liveSummary.successfulPaymentsChange >= 0 ? "+" : ""}
+                    {liveSummary.successfulPaymentsChange}% from last month)
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* 3. Pending Refunds */}
             <div className="col">
               <div className="card summary-card h-100">
                 <div className="summary-card-header">
@@ -385,7 +288,7 @@ const PaymentsPage = () => {
                 </div>
                 <div className="summary-card-body">
                   <h3 className="summary-card-value">
-                    {paymentSummary.pendingRefunds.toLocaleString()}
+                    {liveSummary.pendingRefunds}
                   </h3>
                   <p className="summary-card-subtext text-warning">
                     Awaiting processing
@@ -393,6 +296,8 @@ const PaymentsPage = () => {
                 </div>
               </div>
             </div>
+
+            {/* 4. Total Refunded */}
             <div className="col">
               <div className="card summary-card h-100">
                 <div className="summary-card-header">
@@ -401,14 +306,16 @@ const PaymentsPage = () => {
                 </div>
                 <div className="summary-card-body">
                   <h3 className="summary-card-value">
-                    ETB {paymentSummary.totalRefunded.toLocaleString()}
+                    ETB {Number(liveSummary.totalRefunded).toLocaleString()}
                   </h3>
                   <p className="summary-card-subtext text-danger">
-                    {paymentSummary.refundedPercentage}% of total payments
+                    {liveSummary.refundedPercentage}% of total payments
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* 5. Avg Order Value */}
             <div className="col">
               <div className="card summary-card h-100">
                 <div className="summary-card-header">
@@ -417,29 +324,39 @@ const PaymentsPage = () => {
                 </div>
                 <div className="summary-card-body">
                   <h3 className="summary-card-value">
-                    ETB {paymentSummary.averageOrderValue.toLocaleString()}
+                    ETB{" "}
+                    {Number(liveSummary.averageOrderValue).toLocaleString(
+                      undefined,
+                      { maximumFractionDigits: 0 }
+                    )}
                   </h3>
-                  <p className="summary-card-subtext text-success">
-                    {paymentSummary.avgOrderValueChange >= 0
-                      ? `+${paymentSummary.avgOrderValueChange}%`
-                      : `${paymentSummary.avgOrderValueChange}%`}{" "}
-                    from last month
+                  <p
+                    className={`summary-card-subtext ${
+                      liveSummary.averageOrderValueChange >= 0
+                        ? "text-success"
+                        : "text-danger"
+                    }`}
+                  >
+                    {liveSummary.averageOrderValueChange >= 0 ? "+" : ""}
+                    {liveSummary.averageOrderValueChange}% from last month
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
+          {/* TABLE */}
           <div className="card">
             <div className="card-header">
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h5 className="card-title">All Transactions</h5>
                   <p className="card-text text-muted">
-                    Payment transactions and refund requests via Chapa
+                    Payments, farmer payouts, and refund requests via Chapa
                   </p>
                 </div>
-                <div className="d-flex align-items-center gap-4">
+
+                <div className="d-flex align-items-center flex-wrap flex-lg-nowrap gap-3">
                   <div className="search-container">
                     <Search
                       size={16}
@@ -449,12 +366,12 @@ const PaymentsPage = () => {
                     <input
                       type="text"
                       className="form-control search-input"
-                      placeholder="Search transactions..."
+                      placeholder="Search..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      aria-label="Search transactions"
                     />
                   </div>
+
                   <div className="filter-container">
                     <Filter
                       size={16}
@@ -465,13 +382,14 @@ const PaymentsPage = () => {
                       className="form-select filter-select"
                       value={typeFilter}
                       onChange={(e) => setTypeFilter(e.target.value)}
-                      aria-label="Filter by type"
                     >
                       <option value="all">All Types</option>
                       <option value="payment">Payment</option>
+                      <option value="paymentToFarmer">Farmer Payout</option>
                       <option value="refund">Refund</option>
                     </select>
                   </div>
+
                   <div className="filter-container">
                     <Filter
                       size={16}
@@ -482,7 +400,6 @@ const PaymentsPage = () => {
                       className="form-select filter-select"
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value)}
-                      aria-label="Filter by status"
                     >
                       <option value="all">All Status</option>
                       <option value="completed">Completed</option>
@@ -496,164 +413,56 @@ const PaymentsPage = () => {
                 </div>
               </div>
             </div>
+
             <div className="card-body">
               <div className="table-responsive">
                 <table className="table table-striped">
-                  <thead>
-                    <tr style={{ backgroundColor: "#f8f9fa" }}>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        #
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Transaction ID
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Type
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Order
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Farmer
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Buyer
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Product
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Amount
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Method
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Status
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Date
-                      </th>
-                      <th
-                        style={{
-                          fontSize: "14px",
-                          color: "#6c757d",
-                          fontWeight: "normal",
-                        }}
-                      >
-                        Actions
-                      </th>
+                  <thead style={{ backgroundColor: "#f8f9fa" }}>
+                    <tr>
+                      {[
+                        "#",
+                        "Transaction ID",
+                        "Type",
+                        "Order",
+                        "Farmer",
+                        "Buyer",
+                        "Product",
+                        "Amount",
+                        "Method",
+                        "Status",
+                        "Date",
+                        "Actions",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          style={{
+                            fontSize: "14px",
+                            color: "#6c757d",
+                            fontWeight: "normal",
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {filteredTransactions.length > 0 ? (
-                      filteredTransactions.map((transaction, index) => (
+                      filteredTransactions.map((t, i) => (
                         <tr
-                          key={transaction.id}
-                          className="bg-white shadow-sm rounded-lg mb-2"
+                          key={t.id}
+                          className="bg-white shadow-sm"
                           style={{ border: "1px solid #e9ecef" }}
                         >
-                          <td
-                            style={{
-                              fontSize: "14px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
-                            <div style={{ fontWeight: "bold" }}>
-                              {index + 1}
-                            </div>
+                          <td style={{ fontSize: "14px", padding: "12px" }}>
+                            <strong>{i + 1}</strong>
                           </td>
-                          <td
-                            style={{
-                              fontSize: "14px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
-                            <div style={{ fontWeight: "bold" }}>
-                              {transaction.id}
-                            </div>
+                          <td style={{ fontSize: "14px", padding: "12px" }}>
+                            <strong>{t.id}</strong>
                           </td>
-                          <td
-                            style={{
-                              fontSize: "14px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
+                          <td style={{ padding: "12px" }}>
                             <span
-                              className={`badge ${
-                                transaction.type === "payment"
-                                  ? "bg-primary"
-                                  : "bg-danger"
-                              }`}
+                              className={`badge ${getTypeColor(t.type)}`}
                               style={{
                                 fontSize: "12px",
                                 padding: "4px 8px",
@@ -661,78 +470,40 @@ const PaymentsPage = () => {
                                 borderRadius: "12px",
                               }}
                             >
-                              {transaction.type}
+                              {t.type === "paymentToFarmer"
+                                ? "Farmer Payout"
+                                : t.type}
                             </span>
                           </td>
-                          <td
-                            style={{
-                              fontSize: "14px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
-                            <div style={{ fontWeight: "bold" }}>
-                              {transaction.orderId}
-                            </div>
+                          <td style={{ fontSize: "14px", padding: "12px" }}>
+                            <strong>{t.orderId}</strong>
                           </td>
-                          <td
-                            style={{
-                              fontSize: "14px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
-                            {transaction.farmer}
+                          <td style={{ fontSize: "14px", padding: "12px" }}>
+                            {t.farmer}
                           </td>
-                          <td
-                            style={{
-                              fontSize: "14px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
-                            {transaction.buyer}
+                          <td style={{ fontSize: "14px", padding: "12px" }}>
+                            {t.buyer}
                           </td>
-                          <td
-                            style={{
-                              fontSize: "14px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
-                            {transaction.product}
+                          <td style={{ fontSize: "14px", padding: "12px" }}>
+                            {t.product}
                           </td>
-                          <td
-                            style={{
-                              fontSize: "14px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
-                            <div style={{ fontWeight: "bold" }}>
-                              ETB {transaction.amount.toLocaleString()}
-                            </div>
+                          <td style={{ fontSize: "14px", padding: "12px" }}>
+                            <strong>
+                              ETB {Number(t.amount).toLocaleString()}
+                            </strong>
                           </td>
-                          <td
-                            style={{
-                              fontSize: "14px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
+                          <td style={{ padding: "12px" }}>
                             <div className="d-flex align-items-center">
                               <CreditCard
                                 size={16}
                                 className="me-2 text-primary"
                               />
-                              {transaction.method}
+                              {t.method}
                             </div>
                           </td>
                           <td style={{ padding: "12px" }}>
                             <span
-                              className={`badge ${getStatusColor(
-                                transaction.status
-                              )}`}
+                              className={`badge ${getStatusColor(t.status)}`}
                               style={{
                                 fontSize: "12px",
                                 padding: "4px 8px",
@@ -740,33 +511,16 @@ const PaymentsPage = () => {
                                 borderRadius: "12px",
                               }}
                             >
-                              {transaction.status}
+                              {t.status}
                             </span>
                           </td>
-                          <td
-                            style={{
-                              fontSize: "12px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
-                            {transaction.date}
+                          <td style={{ fontSize: "12px", padding: "12px" }}>
+                            {formatDate(t.date)}
                           </td>
-                          <td
-                            style={{
-                              fontSize: "14px",
-                              color: "#212529",
-                              padding: "12px",
-                            }}
-                          >
+                          <td style={{ padding: "12px" }}>
                             <button
                               className="btn btn-sm btn-light"
-                              style={{
-                                fontSize: "14px",
-                                padding: "4px 8px",
-                                borderRadius: "4px",
-                              }}
-                              onClick={() => handleOpenModal(transaction)}
+                              onClick={() => handleOpenModal(t)}
                             >
                               <MoreHorizontal size={16} />
                             </button>
@@ -776,7 +530,7 @@ const PaymentsPage = () => {
                     ) : (
                       <tr>
                         <td
-                          colSpan={11}
+                          colSpan={12}
                           className="text-center"
                           style={{ fontSize: "14px", color: "#212529" }}
                         >
@@ -790,7 +544,7 @@ const PaymentsPage = () => {
             </div>
           </div>
 
-          {/* Transaction Details Modal */}
+          {/* MODAL */}
           {isModalOpen && selectedTransaction && (
             <div
               className="modal show d-block"
@@ -832,240 +586,111 @@ const PaymentsPage = () => {
                         right: "10px",
                       }}
                       onClick={() => setIsModalOpen(false)}
-                    ></button>
+                    />
                   </div>
+
                   <div
                     className="modal-body"
-                    style={{
-                      padding: "15px",
-                      fontSize: "14px",
-                      color: "#495057",
-                    }}
+                    style={{ padding: "15px", fontSize: "14px" }}
                   >
-                    <div className="mb-3">
-                      <label
-                        className="form-label"
-                        style={{ fontSize: "14px", color: "#6c757d" }}
-                      >
-                        Ref ID
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={selectedTransaction.refId || "N/A"}
-                        readOnly
-                        style={{
-                          fontSize: "14px",
-                          color: "#495057",
-                          borderColor: "#ced4da",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          backgroundColor: "#e9ecef",
-                        }}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label
-                        className="form-label"
-                        style={{ fontSize: "14px", color: "#6c757d" }}
-                      >
-                        Order ID
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={selectedTransaction.orderId || "N/A"}
-                        readOnly
-                        style={{
-                          fontSize: "14px",
-                          color: "#495057",
-                          borderColor: "#ced4da",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          backgroundColor: "#e9ecef",
-                        }}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label
-                        className="form-label"
-                        style={{ fontSize: "14px", color: "#6c757d" }}
-                      >
-                        Farmer
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={selectedTransaction.farmer || "Unknown Farmer"}
-                        readOnly
-                        style={{
-                          fontSize: "14px",
-                          color: "#495057",
-                          borderColor: "#ced4da",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          backgroundColor: "#e9ecef",
-                        }}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label
-                        className="form-label"
-                        style={{ fontSize: "14px", color: "#6c757d" }}
-                      >
-                        Buyer
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={selectedTransaction.buyer || "Unknown Buyer"}
-                        readOnly
-                        style={{
-                          fontSize: "14px",
-                          color: "#495057",
-                          borderColor: "#ced4da",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          backgroundColor: "#e9ecef",
-                        }}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label
-                        className="form-label"
-                        style={{ fontSize: "14px", color: "#6c757d" }}
-                      >
-                        Product
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={selectedTransaction.product || "Unknown Product"}
-                        readOnly
-                        style={{
-                          fontSize: "14px",
-                          color: "#495057",
-                          borderColor: "#ced4da",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          backgroundColor: "#e9ecef",
-                        }}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label
-                        className="form-label"
-                        style={{ fontSize: "14px", color: "#6c757d" }}
-                      >
-                        Amount
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={`ETB ${(
+                    {[
+                      {
+                        label: "Transaction ID",
+                        value: selectedTransaction.id,
+                      },
+                      {
+                        label: "Ref ID",
+                        value: selectedTransaction.refId || "N/A",
+                      },
+                      {
+                        label: "Order ID",
+                        value: selectedTransaction.orderId || "N/A",
+                      },
+                      {
+                        label: "Farmer",
+                        value: selectedTransaction.farmer || "Unknown",
+                      },
+                      {
+                        label: "Buyer",
+                        value: selectedTransaction.buyer || "Unknown",
+                      },
+                      {
+                        label: "Amount",
+                        value: `ETB ${Number(
                           selectedTransaction.amount || 0
-                        ).toLocaleString()}`}
-                        readOnly
-                        style={{
-                          fontSize: "14px",
-                          color: "#495057",
-                          borderColor: "#ced4da",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          backgroundColor: "#e9ecef",
-                        }}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label
-                        className="form-label"
-                        style={{ fontSize: "14px", color: "#6c757d" }}
-                      >
-                        Method
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={selectedTransaction.method || "N/A"}
-                        readOnly
-                        style={{
-                          fontSize: "14px",
-                          color: "#495057",
-                          borderColor: "#ced4da",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          backgroundColor: "#e9ecef",
-                        }}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label
-                        className="form-label"
-                        style={{ fontSize: "14px", color: "#6c757d" }}
-                      >
-                        Transaction ID
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={selectedTransaction.transactionId || "N/A"}
-                        readOnly
-                        style={{
-                          fontSize: "14px",
-                          color: "#495057",
-                          borderColor: "#ced4da",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          backgroundColor: "#e9ecef",
-                        }}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label
-                        className="form-label"
-                        style={{ fontSize: "14px", color: "#6c757d" }}
-                      >
-                        Date
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={selectedTransaction.date || "N/A"}
-                        readOnly
-                        style={{
-                          fontSize: "14px",
-                          color: "#495057",
-                          borderColor: "#ced4da",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          backgroundColor: "#e9ecef",
-                        }}
-                      />
-                    </div>
-                    {selectedTransaction.type === "refund" && (
+                        ).toLocaleString()}`,
+                      },
+                      {
+                        label: "Method",
+                        value: selectedTransaction.method || "N/A",
+                      },
+                      {
+                        label: "Date",
+                        value: formatDate(selectedTransaction.date),
+                      },
+                    ].map((f) => (
+                      <div className="mb-3" key={f.label}>
+                        <label
+                          className="form-label"
+                          style={{ fontSize: "14px", color: "#6c757d" }}
+                        >
+                          {f.label}
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={f.value}
+                          readOnly
+                          style={{ backgroundColor: "#e9ecef" }}
+                        />
+                      </div>
+                    ))}
+
+                    {/* FULL PRODUCT LIST */}
+                    {selectedTransaction.productList?.length > 0 && (
                       <div className="mb-3">
                         <label
                           className="form-label"
                           style={{ fontSize: "14px", color: "#6c757d" }}
                         >
-                          Reason
+                          Products
+                        </label>
+                        <ul
+                          className="list-unstyled mb-0"
+                          style={{ fontSize: "14px" }}
+                        >
+                          {selectedTransaction.productList.map((p, i) => (
+                            <li key={i}>
+                              • <strong>{p.name}</strong> — {p.quantity}{" "}
+                              {p.unit} @ ETB {p.price} = ETB {p.total}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {selectedTransaction.reason && (
+                      <div className="mb-3">
+                        <label
+                          className="form-label"
+                          style={{ fontSize: "14px", color: "#6c757d" }}
+                        >
+                          {selectedTransaction.type === "refund"
+                            ? "Reason"
+                            : "Payout Note"}
                         </label>
                         <textarea
                           className="form-control"
-                          value={selectedTransaction.reason || "N/A"}
+                          value={selectedTransaction.reason}
                           readOnly
                           style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
                             backgroundColor: "#e9ecef",
                             minHeight: "80px",
                           }}
                         />
                       </div>
                     )}
+
                     {selectedTransaction.type === "refund" && (
                       <div className="mb-3">
                         <label
@@ -1077,19 +702,15 @@ const PaymentsPage = () => {
                         <input
                           type="text"
                           className="form-control"
-                          value={`${selectedTransaction.buyer} (ID: ${selectedTransaction.buyerId})`}
+                          value={`${selectedTransaction.buyer} (ID: ${
+                            selectedTransaction.buyerId || "N/A"
+                          })`}
                           readOnly
-                          style={{
-                            fontSize: "14px",
-                            color: "#495057",
-                            borderColor: "#ced4da",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                            backgroundColor: "#e9ecef",
-                          }}
+                          style={{ backgroundColor: "#e9ecef" }}
                         />
                       </div>
                     )}
+
                     <div className="mb-3">
                       <label
                         className="form-label"
@@ -1098,19 +719,13 @@ const PaymentsPage = () => {
                         Status
                       </label>
                       <select
-                        id="status"
                         className="form-select"
                         value={editedStatus}
                         onChange={(e) => setEditedStatus(e.target.value)}
-                        style={{
-                          fontSize: "14px",
-                          color: "#495057",
-                          borderColor: "#ced4da",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                        }}
                       >
-                        {selectedTransaction.type === "payment" ? (
+                        {["payment", "paymentToFarmer"].includes(
+                          selectedTransaction.type
+                        ) ? (
                           <>
                             <option value="pending">Pending</option>
                             <option value="processing">Processing</option>
@@ -1127,6 +742,7 @@ const PaymentsPage = () => {
                       </select>
                     </div>
                   </div>
+
                   <div
                     className="modal-footer"
                     style={{
@@ -1138,22 +754,12 @@ const PaymentsPage = () => {
                   >
                     <button
                       className="btn btn-primary"
-                      style={{
-                        fontSize: "14px",
-                        padding: "6px 12px",
-                        borderRadius: "4px",
-                      }}
                       onClick={handleSaveChanges}
                     >
                       Save Changes
                     </button>
                     <button
                       className="btn btn-secondary"
-                      style={{
-                        fontSize: "14px",
-                        padding: "6px 12px",
-                        borderRadius: "4px",
-                      }}
                       onClick={() => setIsModalOpen(false)}
                     >
                       Close

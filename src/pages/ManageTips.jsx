@@ -44,6 +44,7 @@ const ManageTips = () => {
     "market updates": "Market Updates",
   };
 
+  // === FETCH TIPS + SORT NEWEST FIRST ===
   useEffect(() => {
     let isMounted = true;
     const fetchTips = async () => {
@@ -61,7 +62,6 @@ const ManageTips = () => {
 
       try {
         const response = await apiClient.get("/tips/allTips", { headers });
-        console.log("Fetched all tips:", response.data.tips);
         const fetchedTips = response.data.tips.map((tip) => ({
           id: tip.id,
           type: tip.type,
@@ -81,7 +81,11 @@ const ManageTips = () => {
         }));
 
         if (isMounted) {
-          setTips(fetchedTips);
+          // SORT: NEWEST FIRST
+          const sortedTips = fetchedTips.sort(
+            (a, b) => new Date(b.date) - new Date(a.date)
+          );
+          setTips(sortedTips);
         }
       } catch (err) {
         console.error("Failed to fetch tips:", err.response?.data || err);
@@ -198,7 +202,6 @@ const ManageTips = () => {
     };
     try {
       if (editTip) {
-        // Update existing tip
         await apiClient.put(`/tips/${editTip.id}`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -225,7 +228,6 @@ const ManageTips = () => {
           )
         );
       } else {
-        // Add new tip
         const response = await apiClient.post("/tips/create", payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -318,48 +320,49 @@ const ManageTips = () => {
             </button>
           </div>
 
+          {/* === FILTER SECTION – MOBILE RESPONSIVE === */}
           <div className="card">
             <div className="card-header">
-              <div className="row g-3 align-items-center">
-                <div className="col-12 col-md-6">
-                  <div className="search-container">
-                    <Search size={20} className="search-icon" />
+              <div className="row g-3">
+                {/* Search – Full width on mobile */}
+                <div className="col-12">
+                  <div className="position-relative">
+                    <Search
+                      size={20}
+                      className="position-absolute top-50 start-3 translate-middle-y text-success"
+                    />
                     <input
                       type="text"
-                      className="form-control search-input"
+                      className="form-control ps-5"
                       placeholder="Search tips & alerts..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       aria-label="Search tips"
+                      style={{ height: "40px" }}
                     />
                   </div>
                 </div>
-                <div className="col-12 col-md-6">
+
+                {/* Tabs – Horizontal scroll on mobile */}
+                <div className="col-12">
                   <div
-                    className="btn-group w-100"
-                    role="group"
-                    style={{ overflowX: "auto", whiteSpace: "nowrap" }}
+                    className="d-flex overflow-x-auto pb-2"
+                    style={{ scrollbarWidth: "none" }}
                   >
                     {tabs.map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
-                        className={`btn btn-sm ${
+                        className={`btn btn-sm flex-shrink-0 me-2 ${
                           activeTab === tab
                             ? "btn-success text-white"
                             : "btn-outline-secondary text-muted"
-                        } rounded-0 border-end-0 ${
-                          tab === "All"
-                            ? "rounded-start"
-                            : tab === "Market Updates"
-                            ? "rounded-end"
-                            : ""
                         }`}
                         style={{
-                          transition: "all 0.3s ease",
-                          border: "1px solid #dee2e6",
-                          minWidth: "0",
-                          padding: "0.25rem 0.75rem",
+                          minWidth: "fit-content",
+                          whiteSpace: "nowrap",
+                          borderRadius: "6px",
+                          fontSize: "0.875rem",
                         }}
                       >
                         {tab}
@@ -369,6 +372,8 @@ const ManageTips = () => {
                 </div>
               </div>
             </div>
+
+            {/* === TIPS GRID === */}
             <div className="card-body">
               <div className="row g-4">
                 {filteredTips.length > 0 ? (
@@ -391,6 +396,7 @@ const ManageTips = () => {
             </div>
           </div>
 
+          {/* === MODALS === */}
           <TipsModal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
