@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: 'http://localhost:5000/api/admin', // Keep as is, matches index.js
+  baseURL: 'http://192.168.100.72:5000/api/admin', // Keep as is, matches index.js
 });
 
 apiClient.interceptors.request.use(
