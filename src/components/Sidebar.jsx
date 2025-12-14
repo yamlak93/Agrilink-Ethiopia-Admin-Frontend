@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import "../Css/sidebar.css";
+import "../Css/Sidebar.css";
 import {
   FaTachometerAlt, // Dashboard
   FaUsers, // Manage Users
